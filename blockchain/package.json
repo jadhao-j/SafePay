@@ -1,0 +1,12 @@
+{
+  "name": "safepay-blockchain",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "node": "hardhat node --hostname 0.0.0.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  }
+}
