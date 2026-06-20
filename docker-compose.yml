@@ -56,7 +56,8 @@ services:
     environment:
       BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
       BACKEND_PORT: ${BACKEND_PORT:-8000}
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@postgres:5432/safepay}
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/safepay
+      ALEMBIC_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/safepay
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       ML_SERVICE_URL: ${ML_SERVICE_URL:-http://ml-service:8001}
       BLOCKCHAIN_RPC_URL: ${BLOCKCHAIN_RPC_URL:-http://hardhat-node:8545}

@@ -1,56 +1,98 @@
-"""Auth router stubs for registration, login, OTP, MFA, refresh, and logout."""
+"""Auth router — registration, login, OTP, refresh, logout."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.auth import LogoutRequest, LoginRequest, MfaVerifyRequest, OtpSendRequest, OtpVerifyRequest, RefreshRequest, RegisterRequest
+from app.core.database import get_session
+from app.services import auth_service
+from app.schemas.auth import (
+    LoginRequest,
+    LogoutRequest,
+    OtpSendRequest,
+    OtpVerifyRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def register(payload: RegisterRequest) -> dict[str, str]:
-    """Register a new user account."""
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
+async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_session)) -> UserResponse:
+    """Register a new user account and send an OTP for verification."""
 
-    raise HTTPException(status_code=501, detail="Registration will create a SafePay account and start OTP verification.")
+    try:
+        user = await auth_service.register_user(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    identifier = user.email or user.phone
+    if identifier:
+        await auth_service.send_otp(identifier)
+
+    return UserResponse(
+        id=str(user.id),
+        name=user.name,
+        email=user.email,
+        phone=user.phone,
+        role=user.role.value,
+        status=user.status.value,
+        mfa_enabled=user.mfa_enabled,
+        security_score=user.security_score,
+    )
 
 
-@router.post("/login", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def login(payload: LoginRequest) -> dict[str, str]:
-    """Authenticate a user with password or passwordless flow."""
-
-    raise HTTPException(status_code=501, detail="Login will authenticate users and issue access and refresh tokens.")
-
-
-@router.post("/otp/send", status_code=status.HTTP_501_NOT_IMPLEMENTED)
+@router.post("/otp/send")
 async def send_otp(payload: OtpSendRequest) -> dict[str, str]:
-    """Send an OTP for verification or MFA."""
+    """Send (or resend) an OTP to the given identifier."""
 
-    raise HTTPException(status_code=501, detail="OTP send will dispatch a one-time code through the configured provider.")
-
-
-@router.post("/otp/verify", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def verify_otp(payload: OtpVerifyRequest) -> dict[str, str]:
-    """Verify an OTP supplied by the user."""
-
-    raise HTTPException(status_code=501, detail="OTP verification will validate the one-time code and continue the auth flow.")
+    await auth_service.send_otp(payload.identifier)
+    return {"message": "OTP sent if the account exists."}
 
 
-@router.post("/mfa/verify", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def verify_mfa(payload: MfaVerifyRequest) -> dict[str, str]:
-    """Verify a second-factor challenge."""
+@router.post("/otp/verify")
+async def verify_otp(payload: OtpVerifyRequest, db: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    """Verify a submitted OTP and activate the account."""
 
-    raise HTTPException(status_code=501, detail="MFA verification will confirm an additional authentication factor.")
-
-
-@router.post("/refresh", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def refresh(payload: RefreshRequest) -> dict[str, str]:
-    """Rotate the session using the refresh token."""
-
-    raise HTTPException(status_code=501, detail="Token refresh will rotate the access token and refresh token pair.")
+    ok = await auth_service.verify_otp(db, payload.identifier, payload.code)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired code.")
+    return {"message": "Verified successfully."}
 
 
-@router.post("/logout", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def logout(payload: LogoutRequest) -> dict[str, str]:
-    """Revoke the current session."""
+@router.post("/login", response_model=TokenResponse)
+async def login(payload: LoginRequest, db: AsyncSession = Depends(get_session)) -> TokenResponse:
+    """Authenticate with identifier + password, return access and refresh tokens."""
 
-    raise HTTPException(status_code=501, detail="Logout will revoke the current SafePay session and tokens.")
+    if not payload.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password is required.")
+
+    result = await auth_service.login_user(db, payload.identifier, payload.password)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+
+    _, tokens = result
+    return tokens
+
+
+@router.post("/refresh", response_model=TokenResponse)
+async def refresh(payload: RefreshRequest, request: Request, db: AsyncSession = Depends(get_session)) -> TokenResponse:
+    """Rotate the access/refresh token pair using a valid refresh token."""
+
+    user_id = request.state.user_id
+    tokens = await auth_service.refresh_tokens(db, user_id, payload.refresh_token)
+    if tokens is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token.")
+    return tokens
+
+
+@router.post("/logout")
+async def logout(payload: LogoutRequest, request: Request, db: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    """Revoke the current session's refresh token."""
+
+    user_id = request.state.user_id
+    await auth_service.logout_user(db, user_id, payload.refresh_token)
+    return {"message": "Logged out successfully."}

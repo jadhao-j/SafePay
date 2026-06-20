@@ -22,7 +22,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     phone: Mapped[str | None] = mapped_column(Text, unique=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", create_type=False),
+        Enum(UserRole, name="user_role", create_type=False, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
         server_default="user",
         nullable=False,
     )
@@ -30,7 +30,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, server_default="false", nullable=False)
     security_score: Mapped[int] = mapped_column(Integer, server_default="0", nullable=False)
     status: Mapped[UserStatus] = mapped_column(
-        Enum(UserStatus, name="user_status", create_type=False),
+        Enum(UserStatus, name="user_status", create_type=False, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
         nullable=False,
     )
 

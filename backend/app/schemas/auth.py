@@ -50,3 +50,24 @@ class LogoutRequest(BaseModel):
     """Logout payload."""
 
     refresh_token: str | None = None
+
+class TokenResponse(BaseModel):
+    """Access and refresh token pair returned after login or refresh."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class UserResponse(BaseModel):
+    """Safe user representation — never includes password or pin hash."""
+
+    id: str
+    name: str | None
+    email: str | None
+    phone: str | None
+    role: str
+    status: str
+    mfa_enabled: bool
+    security_score: int

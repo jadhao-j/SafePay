@@ -18,6 +18,11 @@ from app.models.enums import (
 )
 
 
+def _enum_values(enum_cls):
+    """Return enum .value strings so SQLAlchemy sends 'active' not 'ACTIVE' to Postgres."""
+    return [e.value for e in enum_cls]
+
+
 class Wallet(UUIDMixin, TimestampMixin, Base):
     """ORM model for the wallets table."""
 
@@ -29,7 +34,7 @@ class Wallet(UUIDMixin, TimestampMixin, Base):
     balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), server_default="0.00", nullable=False)
     currency: Mapped[str] = mapped_column(Text, server_default="INR", nullable=False)
     status: Mapped[WalletStatus] = mapped_column(
-        Enum(WalletStatus, name="wallet_status", create_type=False),
+        Enum(WalletStatus, name="wallet_status", create_type=False, values_callable=_enum_values),
         server_default="active",
         nullable=False,
     )
@@ -64,11 +69,11 @@ class Transaction(UUIDMixin, TimestampMixin, Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     currency: Mapped[str] = mapped_column(Text, nullable=False)
     payment_type: Mapped[PaymentType] = mapped_column(
-        Enum(PaymentType, name="payment_type", create_type=False),
+        Enum(PaymentType, name="payment_type", create_type=False, values_callable=_enum_values),
         nullable=False,
     )
     status: Mapped[TransactionStatus] = mapped_column(
-        Enum(TransactionStatus, name="transaction_status", create_type=False),
+        Enum(TransactionStatus, name="transaction_status", create_type=False, values_callable=_enum_values),
         nullable=False,
     )
     device_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("devices.id"), nullable=False)
@@ -88,7 +93,7 @@ class PaymentRequest(UUIDMixin, TimestampMixin, Base):
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     status: Mapped[PaymentRequestStatus] = mapped_column(
-        Enum(PaymentRequestStatus, name="payment_request_status", create_type=False),
+        Enum(PaymentRequestStatus, name="payment_request_status", create_type=False, values_callable=_enum_values),
         nullable=False,
     )
 
@@ -102,7 +107,7 @@ class ScheduledPayment(UUIDMixin, TimestampMixin, Base):
     receiver_upi_id: Mapped[str] = mapped_column(Text, nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
     frequency: Mapped[ScheduledPaymentFrequency] = mapped_column(
-        Enum(ScheduledPaymentFrequency, name="scheduled_payment_frequency", create_type=False),
+        Enum(ScheduledPaymentFrequency, name="scheduled_payment_frequency", create_type=False, values_callable=_enum_values),
         nullable=False,
     )
     next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

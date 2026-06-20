@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     backend_host: str = Field(default="0.0.0.0")
     backend_port: int = Field(default=8000)
     database_url: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/safepay")
+    alembic_database_url: str = Field(default="postgresql://postgres:postgres@localhost:5432/safepay")
     redis_url: str = Field(default="redis://localhost:6379/0")
     cors_origins: str = Field(default="http://localhost:3000")
     jwt_secret: str = Field(default="")

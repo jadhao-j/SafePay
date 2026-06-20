@@ -10,8 +10,8 @@ class UserRole(str, enum.Enum):
     COMPLIANCE_OFFICER = "compliance_officer"
     ADMIN = "admin"
 
-
 class UserStatus(str, enum.Enum):
+    PENDING = "pending"
     ACTIVE = "active"
     SUSPENDED = "suspended"
     FROZEN = "frozen"
