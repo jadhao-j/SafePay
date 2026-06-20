@@ -1,11 +1,19 @@
-Dataset: Credit Card Fraud Detection
+# Credit Card Fraud Detection Dataset
+
+Dataset Name:
+Credit Card Fraud Detection
 
 Source:
 https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
 
-File:
+Required File:
 creditcard.csv
 
+Instructions:
+
+1. Download the dataset from Kaggle.
+2. Extract the ZIP file.
+3. Place creditcard.csv inside this datasets folder.
+
 Note:
-Dataset is not included in the repository due to size limitations.
-Download manually from Kaggle and place inside app/datasets/.
+The dataset is not included in this repository because it exceeds GitHub file size limits.
