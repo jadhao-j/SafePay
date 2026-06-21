@@ -1,0 +1,1 @@
+{"recipient_upi_id":"9876543210@safepay","amount":25.00,"currency":"INR","note":"upi test","idempotency_key":"upi-test-001"}

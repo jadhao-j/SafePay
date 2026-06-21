@@ -1,49 +1,150 @@
-"""Payment router stubs for UPI, QR, merchant, P2P, and recurring flows."""
+"""Payment router — P2P transfer (others deferred to keep Phase 2 scope tight)."""
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.schemas.payments import MerchantPayRequest, P2PTransferRequest, QRGenerateRequest, QRPayRequest, RecurringPaymentRequest, UpiSendRequest
+from app.core.database import get_session
+from app.core.deps import get_current_user_id
+from app.schemas.payments import (
+    MerchantPayRequest,
+    P2PTransferRequest,
+    QRGenerateRequest,
+    QRPayRequest,
+    RecurringPaymentRequest,
+    UpiSendRequest,
+)
+from app.services import wallet_service
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 
-@router.post("/upi/send", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def send_upi(payload: UpiSendRequest) -> dict[str, str]:
+@router.post("/p2p/transfer", status_code=status.HTTP_201_CREATED)
+async def transfer_p2p(
+    payload: P2PTransferRequest,
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> dict[str, str | None]:
+    """Transfer funds from the caller's wallet to another user's wallet by phone number."""
+
+    try:
+        txn = await wallet_service.transfer_p2p(
+            db,
+            sender_user_id=user_id,
+            receiver_phone=payload.receiver_phone,
+            amount=payload.amount,
+            idempotency_key=payload.idempotency_key,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return {
+        "transaction_id": str(txn.id),
+        "status": txn.status.value,
+        "amount": str(txn.amount),
+    }
+
+
+@router.post("/upi/send", status_code=status.HTTP_201_CREATED)
+async def send_upi(
+    payload: UpiSendRequest,
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> dict[str, str | None]:
     """Send a UPI payment."""
 
-    raise HTTPException(status_code=501, detail="UPI send will initiate a payment transfer using UPI rails.")
+    try:
+        txn = await wallet_service.send_upi(
+            db,
+            sender_user_id=user_id,
+            recipient_upi_id=payload.recipient_upi_id,
+            amount=payload.amount,
+            idempotency_key=payload.idempotency_key,
+            note=payload.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return {
+        "transaction_id": str(txn.id),
+        "status": txn.status.value,
+        "amount": str(txn.amount),
+    }
 
 
-@router.post("/qr/generate", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def generate_qr(payload: QRGenerateRequest) -> dict[str, str]:
-    """Generate a QR payload for payment."""
+@router.post("/qr/generate", status_code=status.HTTP_201_CREATED)
+async def generate_qr(
+    payload: QRGenerateRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Generate a QR payload for a merchant payment."""
 
-    raise HTTPException(status_code=501, detail="QR generation will create a scannable payment payload.")
+    try:
+        qr_payload = await wallet_service.generate_qr_payload(
+            db,
+            merchant_upi_id=payload.merchant_upi_id,
+            amount=payload.amount,
+            currency=payload.currency,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return {"qr_payload": qr_payload}
 
 
-@router.post("/qr/pay", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def pay_qr(payload: QRPayRequest) -> dict[str, str]:
-    """Pay a QR code."""
+@router.post("/qr/pay", status_code=status.HTTP_201_CREATED)
+async def pay_qr(
+    payload: QRPayRequest,
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> dict[str, str | None]:
+    """Pay a scanned QR code."""
 
-    raise HTTPException(status_code=501, detail="QR payment will submit a transaction for a scanned merchant code.")
+    try:
+        txn = await wallet_service.pay_qr(
+            db,
+            sender_user_id=user_id,
+            qr_payload_str=payload.qr_payload,
+            amount=payload.amount,
+            idempotency_key=payload.idempotency_key,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    return {
+        "transaction_id": str(txn.id),
+        "status": txn.status.value,
+        "amount": str(txn.amount),
+    }
 
-@router.post("/merchant/pay", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def pay_merchant(payload: MerchantPayRequest) -> dict[str, str]:
+@router.post("/merchant/pay", status_code=status.HTTP_201_CREATED)
+async def pay_merchant(
+    payload: MerchantPayRequest,
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> dict[str, str | None]:
     """Pay a merchant directly."""
 
-    raise HTTPException(status_code=501, detail="Merchant payment will transfer funds to a merchant account.")
+    try:
+        txn = await wallet_service.pay_merchant(
+            db,
+            sender_user_id=user_id,
+            merchant_id=payload.merchant_id,
+            amount=payload.amount,
+            idempotency_key=payload.idempotency_key,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-
-@router.post("/p2p/transfer", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def transfer_p2p(payload: P2PTransferRequest) -> dict[str, str]:
-    """Transfer funds between users."""
-
-    raise HTTPException(status_code=501, detail="P2P transfer will move funds between two SafePay wallets.")
+    return {
+        "transaction_id": str(txn.id),
+        "status": txn.status.value,
+        "amount": str(txn.amount),
+    }
 
 
 @router.post("/recurring", status_code=status.HTTP_501_NOT_IMPLEMENTED)
 async def create_recurring_payment(payload: RecurringPaymentRequest) -> dict[str, str]:
-    """Create a recurring payment instruction."""
+    """Create a recurring payment instruction. Deferred to Phase 3 (needs job scheduler)."""
 
-    raise HTTPException(status_code=501, detail="Recurring payment will schedule a repeat transaction pattern.")
+    raise HTTPException(status_code=501, detail="Recurring payments are planned for Phase 3.")

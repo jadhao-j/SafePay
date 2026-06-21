@@ -50,9 +50,9 @@ class MerchantPayRequest(BaseModel):
 
 
 class P2PTransferRequest(BaseModel):
-    """P2P transfer payload."""
+    """P2P transfer payload — receiver identified by phone number."""
 
-    receiver_wallet_id: str = Field(min_length=1)
+    receiver_phone: str = Field(min_length=10, max_length=15)
     amount: Decimal = Field(gt=Decimal("0"))
     currency: str = "INR"
     note: str | None = None

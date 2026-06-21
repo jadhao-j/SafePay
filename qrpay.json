@@ -1,0 +1,1 @@
+{"qr_payload":"{\"merchant_id\":\"9fb66c25-7179-4ce8-9b7a-d02790072eb4\",\"merchant_upi_id\":\"testmerchant@safepay\",\"business_name\":\"Test Merchant Store\",\"amount\":\"75.0\",\"currency\":\"INR\"}","amount":50.00,"currency":"INR","idempotency_key":"qrpay-test-001"}

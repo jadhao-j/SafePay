@@ -34,6 +34,8 @@ class PaymentType(str, enum.Enum):
     QR = "qr"
     UPI = "upi"
     RECURRING = "recurring"
+    TOPUP = "topup"
+    WITHDRAWAL = "withdrawal"
 
 
 class TransactionStatus(str, enum.Enum):
