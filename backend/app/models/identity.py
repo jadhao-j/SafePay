@@ -70,7 +70,7 @@ class BehavioralEvent(UUIDMixin, TimestampMixin, Base):
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     session_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     event_type: Mapped[BehavioralEventType] = mapped_column(
-        Enum(BehavioralEventType, name="behavioral_event_type", create_type=False),
+        Enum(BehavioralEventType, name="behavioral_event_type", create_type=False, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
         nullable=False,
     )
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)

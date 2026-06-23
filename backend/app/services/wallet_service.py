@@ -118,6 +118,7 @@ async def transfer_p2p(
     amount: Decimal,
     idempotency_key: str,
     note: str | None,
+    device_id=None,
 ) -> Transaction:
     """Transfer funds from the caller's wallet to another user's wallet, identified by phone."""
 
@@ -162,7 +163,7 @@ async def transfer_p2p(
         currency=sender_wallet.currency,
         payment_type=PaymentType.P2P,
         status=TransactionStatus.COMPLETED,
-        device_id=None,
+        device_id=device_id,
         idempotency_key=idempotency_key,
     )
     db.add(txn)
@@ -198,6 +199,7 @@ async def pay_merchant(
     merchant_id: str,
     amount: Decimal,
     idempotency_key: str,
+    device_id=None,
 ) -> Transaction:
     """Pay a merchant directly. Funds go to the merchant owner's wallet."""
 
@@ -238,7 +240,7 @@ async def pay_merchant(
         currency=sender_wallet.currency,
         payment_type=PaymentType.MERCHANT,
         status=TransactionStatus.COMPLETED,
-        device_id=None,
+        device_id=device_id,
         idempotency_key=idempotency_key,
     )
     db.add(txn)
