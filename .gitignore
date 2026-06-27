@@ -22,7 +22,10 @@ env/
 build/
 site/
 *.egg-info/
-
+# ML data — too large for git
+ml-service/data/
+*.csv
+ml-service/.venv/
 # FastAPI / Uvicorn / logs
 *.log
 

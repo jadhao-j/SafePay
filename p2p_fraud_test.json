@@ -1,0 +1,1 @@
+{"receiver_phone":"9876543210","amount":100.00,"currency":"INR","note":"fraud test","idempotency_key":"fraud-test-001"}

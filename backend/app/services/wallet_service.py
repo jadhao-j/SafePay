@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.enums import PaymentType, TransactionStatus
 from app.models.identity import AuditLog, User
 from app.models.payments import Merchant, Transaction, Wallet
+from app.services import fraud_service
+from app.services.behavior_service import get_trust_score as _get_trust_score
+from app.services import fraud_service
+from app.services.behavior_service import get_trust_score
 
 async def _write_audit_log(db: AsyncSession, actor_user_id: UUID, action: str, metadata: dict) -> None:
     """Append an audit log entry."""
@@ -169,11 +173,18 @@ async def transfer_p2p(
     db.add(txn)
     await db.flush()
 
+    behavioral_data = await _get_trust_score(db, sender_user_id)
+    fraud_result = await fraud_service.score_transaction(db, txn, device_id, behavioral_data["trust_score"])
+    if fraud_result["decision"] == "block":
+        await db.rollback()
+        risk_score_val = fraud_result["final_risk_score"]
+        raise ValueError(f"Transaction blocked. Risk score: {risk_score_val:.2f}")
+
     await _write_audit_log(
         db,
         sender_user_id,
         "payment.p2p_transfer",
-        {"amount": str(amount), "receiver_user_id": str(receiver_user.id)},
+        {"amount": str(amount), "receiver_user_id": str(receiver_user.id), "fraud_decision": fraud_result["decision"]},
     )
     await db.commit()
     return txn
@@ -246,14 +257,21 @@ async def pay_merchant(
     db.add(txn)
     await db.flush()
 
+    behavioral_data = await _get_trust_score(db, sender_user_id)
+    fraud_result = await fraud_service.score_transaction(db, txn, device_id, behavioral_data["trust_score"])
+    if fraud_result["decision"] == "block":
+        await db.rollback()
+        risk_score_val = fraud_result["final_risk_score"]
+        raise ValueError(f"Transaction blocked. Risk score: {risk_score_val:.2f}")
+
     await _write_audit_log(
         db,
         sender_user_id,
         "payment.merchant_pay",
-        {"amount": str(amount), "merchant_id": str(merchant.id)},
+        {"amount": str(amount), "merchant_id": str(merchant.id), "fraud_decision": fraud_result["decision"]},
     )
     await db.commit()
-    return txn  
+    return txn
 
 
 async def generate_qr_payload(

@@ -1,23 +1,37 @@
-"""SafePay ML Service — Phase 0 stub."""
-
+﻿"""SafePay ML Service - XGBoost fraud scoring."""
 from fastapi import FastAPI
+from pydantic import BaseModel
+from app.models.predictor import predict
 
-app = FastAPI(title="SafePay ML Service", version="0.1.0")
+app = FastAPI(title="SafePay ML Service", version="1.0.0")
+
+
+class ScoreRequest(BaseModel):
+    transaction_id: str = ""
+    transaction_amt: float = 0.0
+    product_cd: str = "W"
+    card1: float = 0.0
+    card2: float = 0.0
+    card3: float = 0.0
+    card5: float = 0.0
+    addr1: float = 0.0
+    addr2: float = 0.0
+    dist1: float = 0.0
+    p_emaildomain: str = "gmail.com"
+    r_emaildomain: str = "gmail.com"
+    device_trust_score: float = 50.0
+    behavioral_trust_score: float = 50.0
+    is_new_device: bool = False
+    hour_of_day: int = 12
 
 
 @app.get("/health")
-async def health() -> dict:
-    """Health check for ML service."""
-    return {"status": "ok", "version": "0.1.0", "model": "stub"}
+async def health():
+    return {"status": "ok", "version": "1.0.0", "model": "xgboost_loaded"}
 
 
 @app.post("/score")
-async def score_transaction(payload: dict) -> dict:
-    """Stub fraud scoring endpoint — returns mock score for Phase 0."""
-    # TODO Phase 4: implement real XGBoost + Isolation Forest scoring
-    return {
-        "risk_score": 0.1,
-        "decision": "approve",
-        "confidence": 0.9,
-        "note": "stub response — real model not loaded yet"
-    }
+async def score_transaction(payload: ScoreRequest):
+    result = predict(payload.dict())
+    result["transaction_id"] = payload.transaction_id
+    return result

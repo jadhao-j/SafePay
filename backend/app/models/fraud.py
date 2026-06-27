@@ -34,7 +34,7 @@ class FraudScore(UUIDMixin, TimestampMixin, Base):
     )
     final_risk_score: Mapped[Decimal] = mapped_column(Numeric(5, 4), server_default="0.0000", nullable=False)
     decision: Mapped[FraudDecision] = mapped_column(
-        Enum(FraudDecision, name="fraud_decision", create_type=False),
+        Enum(FraudDecision, name="fraud_decision", create_type=False, values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     model_version: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -66,7 +66,7 @@ class FraudCase(UUIDMixin, TimestampMixin, Base):
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     status: Mapped[FraudCaseStatus] = mapped_column(
-        Enum(FraudCaseStatus, name="fraud_case_status", create_type=False),
+        Enum(FraudCaseStatus, name="fraud_case_status", create_type=False, values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -83,7 +83,7 @@ class Alert(UUIDMixin, TimestampMixin, Base):
         PG_UUID(as_uuid=True), ForeignKey("transactions.id"), nullable=True
     )
     type: Mapped[AlertType] = mapped_column(
-        Enum(AlertType, name="alert_type", create_type=False),
+        Enum(AlertType, name="alert_type", create_type=False, values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     message: Mapped[str] = mapped_column(Text, nullable=False)
