@@ -14,7 +14,7 @@
 | 2 | Wallet & Basic Payments | ✅ | 2026-06-20 | 2026-06-21 | All 8 endpoints, idempotency verified |
 | 3 | Device & Behavioral Data Collection | ✅ | 2026-06-22 | 2026-06-23 | Device fingerprinting, telemetry, trust score, device_id on transactions |
 | 4 | Fraud Detection Engine (Core AI) | ✅ | 2026-06-26 | 2026-06-27 | XGBoost model live, fraud_scores written, explanation + alerts endpoints working |
-| 5 | Explainable AI + Alerts + Case Management | ⬜ | | | |
+| 5 | Explainable AI + Alerts + Case Management | ✅ | 2026-06-28 | 2026-06-29 | SHAP live, fraud_explanations + alerts written per transaction, all 6 fraud endpoints, 4 frontend pages built |
 | 6 | Blockchain Fraud Intelligence Layer | ⬜ | | | |
 | 7 | Federated Learning Layer | ⬜ | | | |
 | 8 | Admin SOC Dashboard | ⬜ | | | |
@@ -22,9 +22,9 @@
 | 10 | Hardening & Polish | ⬜ | | | |
 
 ## Current Phase
-**Active phase:** Phase 5 — Explainable AI + Alerts + Case Management
-**Current focus task:** SHAP integration, fraud_explanations table population, alert delivery, case management endpoints
-**Blockers:** None. Ganesh's ML service fixed and integrated (xgboost-v1). Mayur's blockchain contracts ready for Phase 6.
+**Active phase:** Phase 6 — Blockchain Fraud Intelligence Layer
+**Current focus task:** FraudRegistry.sol + Reputation.sol deployment, Web3.py backend integration, confirmed-fraud → on-chain signal pipeline
+**Blockers:** None. Phase 5 complete and verified end-to-end.
 
 ## Task-Level Checklist
 
@@ -94,16 +94,21 @@
   - [x] Response shape fixed: `risk_score`, `decision`, `confidence`, `model_version`
 - [x] Verified end-to-end: P2P transfer → fraud scored → `fraud_scores` row in DB with `decision: challenge` and `model_version: xgboost-v1` → explanation endpoint returns human-readable reason → alerts endpoint lists it
 
-### Phase 5 — Explainable AI + Alerts + Case Management ⬜ NOT STARTED
-- [ ] SHAP integration in ml-service — per-prediction feature attribution
-- [ ] `fraud_explanations` row written with top_factors JSONB
-- [ ] Replace heuristic explanation text with SHAP-driven reasons
-- [ ] Alert creation on every block/challenge — writes to `alerts` table
-- [ ] `GET /fraud/alerts` upgraded to query `alerts` table (not just fraud_scores)
-- [ ] Alert read/unread status
-- [ ] Frontend Transaction Detail — explanation panel with component scores
-- [ ] Frontend Alerts page (admin)
-- [ ] Frontend Case Detail page (admin)
+### Phase 5 — Explainable AI + Alerts + Case Management ✅ COMPLETE
+- [x] SHAP integration in ml-service — TreeExplainer on 338-feature XGBoost, top 5 contributors returned per prediction
+- [x] `fraud_explanations` row written with top_factors JSONB on every scored transaction
+- [x] Replace heuristic explanation text with SHAP-driven reasons via `generate_explanation_text()`
+- [x] Alert creation on every block/challenge — `create_alert()` writes to `alerts` table
+- [x] `GET /fraud/alerts` queries `alerts` table, filtered by user_id
+- [x] `PATCH /fraud/alerts/{id}/read` — mark alert read/unread
+- [x] `GET /fraud/transactions/{id}/explanation` — full SHAP + component scores response
+- [x] `POST /fraud/case` + `GET /fraud/case/{id}` + `PATCH /fraud/case/{id}` — full case CRUD
+- [x] Frontend Transaction History page — filterable list, status badges, fraud row highlighting
+- [x] Frontend Transaction Detail page — amount card + meta + SHAP ExplanationPanel + Open Case CTA
+- [x] Frontend Admin Alerts page — SOC dark theme, filter pills, mark-read, inline explanation drawer
+- [x] Frontend Admin Cases page — alert-to-case queue, open case actions
+- [x] Frontend Admin Case Detail page — status controls, notes, SHAP evidence panel
+- [x] Verified end-to-end: transfer → SHAP scored → explanation in DB → alert written → all 4 pages render
 
 ### Phase 6 — Blockchain Fraud Intelligence Layer ⬜ NOT STARTED
 - [ ] Mayur's contracts merged — FraudRegistry.sol + Reputation.sol deployed to Hardhat
@@ -186,3 +191,4 @@
 | 2026-06-21 | Long session | Phase 2 fully complete | Phase 3 |
 | 2026-06-22/23 | Session | Phase 3 complete | Phase 4 |
 | 2026-06-26/27 | Long session | Phase 4 complete — fixed Ganesh's ML service (3 critical gaps), wired XGBoost fraud scoring into payment flow, fraud_scores written to DB, explanation + alerts endpoints live. Fixed 7 more bugs (#21-27). | Phase 5 — SHAP, alert delivery, case management |
+| 2026-06-28/29 | Long session | Phase 5 complete — SHAP TreeExplainer integrated (338 features), fraud_explanations table live, create_alert() wired, 6 fraud API endpoints verified, 4 frontend pages + shared components built (ExplanationPanel, AlertRow, CaseStatusBadge), route group layouts added. | Phase 6 — Blockchain |

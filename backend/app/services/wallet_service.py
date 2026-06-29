@@ -11,8 +11,6 @@ from app.models.identity import AuditLog, User
 from app.models.payments import Merchant, Transaction, Wallet
 from app.services import fraud_service
 from app.services.behavior_service import get_trust_score as _get_trust_score
-from app.services import fraud_service
-from app.services.behavior_service import get_trust_score
 
 async def _write_audit_log(db: AsyncSession, actor_user_id: UUID, action: str, metadata: dict) -> None:
     """Append an audit log entry."""

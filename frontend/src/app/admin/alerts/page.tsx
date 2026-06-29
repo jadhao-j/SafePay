@@ -266,7 +266,7 @@ export default function AdminAlertsPage(): JSX.Element {
               <div style={{ marginTop: "20px", textAlign: "center" }}>
                 <button
                   id="btn-view-full"
-                  onClick={() => router.push(`/history/${drawerTxnId}`)}
+                  onClick={() => router.push(`/admin/cases/${drawerTxnId}`)}
                   style={{
                     padding: "10px 20px",
                     borderRadius: "8px",

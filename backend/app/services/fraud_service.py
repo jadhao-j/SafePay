@@ -1,6 +1,4 @@
-﻿"""Fraud detection service - Phase 4 core engine."""
-
-import httpx
+﻿import httpx
 from decimal import Decimal
 from uuid import UUID
 
@@ -8,38 +6,32 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.fraud import FraudScore
+from app.models.enums import AlertType, FraudDecision
+from app.models.fraud import Alert, FraudExplanation, FraudScore
 from app.models.identity import Device
-from app.models.payments import Transaction
+from app.models.payments import Transaction, Wallet
 
 settings = get_settings()
 
 
-# ── ML Service call ───────────────────────────────────────────────────────────
-
 async def call_ml_service(payload: dict) -> dict:
-    """Call the ML scoring microservice. Returns risk_score, decision, confidence."""
     ml_url = getattr(settings, 'ml_service_url', 'http://ml-service:8001')
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             response = await client.post(f'{ml_url}/score', json=payload)
             response.raise_for_status()
             return response.json()
     except Exception:
-        # If ML service is unreachable, default to a medium-risk score
-        # so payments are challenged rather than blindly approved
         return {
             'risk_score': 0.4,
             'decision': 'challenge',
             'confidence': 0.5,
             'model_version': 'fallback',
+            'feature_contributions': [],
         }
 
 
-# ── Risk component computation ────────────────────────────────────────────────
-
 def compute_transaction_risk(amount: Decimal) -> float:
-    """Higher transaction amounts = higher risk contribution."""
     amt = float(amount)
     if amt < 1000:
         return 0.1
@@ -53,10 +45,9 @@ def compute_transaction_risk(amount: Decimal) -> float:
         return 0.8
 
 
-def compute_device_risk(device: Device | None) -> float:
-    """Unknown or low-trust devices = higher risk."""
+def compute_device_risk(device) -> float:
     if device is None:
-        return 0.8  # unknown device is high risk
+        return 0.8
     trust = float(device.trust_score)
     if not device.is_trusted:
         return max(0.3, 1.0 - (trust / 100.0))
@@ -64,23 +55,11 @@ def compute_device_risk(device: Device | None) -> float:
 
 
 def compute_behavioral_risk(behavioral_trust_score: float) -> float:
-    """Low behavioral trust = higher risk."""
     return max(0.0, 1.0 - (behavioral_trust_score / 100.0))
 
 
-def compute_weighted_score(
-    ml_score: float,
-    behavioral_risk: float,
-    transaction_risk: float,
-    device_risk: float,
-) -> float:
-    """
-    Weighted risk formula from PRD.md:
-      35% Behavioral risk
-      30% Transaction risk
-      20% Device risk
-      15% ML model score (cross-bank intelligence proxy for now)
-    """
+def compute_weighted_score(ml_score: float, behavioral_risk: float,
+                           transaction_risk: float, device_risk: float) -> float:
     weighted = (
         0.35 * behavioral_risk
         + 0.30 * transaction_risk
@@ -91,7 +70,6 @@ def compute_weighted_score(
 
 
 def make_decision(weighted_score: float) -> str:
-    """Apply decision thresholds from PRD.md."""
     if weighted_score < 0.3:
         return 'approve'
     elif weighted_score <= 0.7:
@@ -100,31 +78,121 @@ def make_decision(weighted_score: float) -> str:
         return 'block'
 
 
-# ── Main scoring orchestrator ─────────────────────────────────────────────────
+def generate_explanation_text(shap_contributions: list, component_scores: dict) -> str:
+    """Generate human-readable explanation from SHAP contributions and component scores."""
+    reasons = []
+
+    # SHAP-driven reasons
+    for item in shap_contributions:
+        if item['shap_value'] > 0.05:
+            feat = item['feature']
+            if 'TransactionAmt' in feat:
+                reasons.append('unusually high transaction amount for this model')
+            elif 'card' in feat.lower():
+                reasons.append('card characteristics flagged as unusual')
+            elif 'addr' in feat.lower():
+                reasons.append('billing address signals are atypical')
+            elif 'emaildomain' in feat.lower():
+                reasons.append('email domain associated with elevated risk')
+            elif 'dist' in feat.lower():
+                reasons.append('distance signals indicate anomaly')
+
+    # Component score reasons
+    if component_scores.get('device_risk', 0) > 0.6:
+        reasons.append('unrecognized or untrusted device')
+    if component_scores.get('behavioral_risk', 0) > 0.6:
+        reasons.append('unusual interaction patterns detected')
+    if component_scores.get('transaction_risk', 0) > 0.5:
+        reasons.append('transaction amount outside normal range')
+
+    reasons = list(dict.fromkeys(reasons))  # deduplicate preserving order
+
+    if not reasons:
+        return 'Transaction flagged for precautionary review by automated system.'
+
+    return 'Transaction flagged due to: ' + ', '.join(reasons) + '.'
+
+
+async def write_explanation(
+    db: AsyncSession,
+    fraud_score_id: UUID,
+    shap_contributions: list,
+    component_scores: dict,
+    confidence: float,
+) -> FraudExplanation:
+    """Write a FraudExplanation row with SHAP data."""
+    explanation_text = generate_explanation_text(shap_contributions, component_scores)
+
+    decision = 'review'
+    if component_scores.get('final_risk_score', 0) < 0.3:
+        decision = 'no action required'
+    elif component_scores.get('final_risk_score', 0) <= 0.7:
+        decision = 'verify identity via OTP before retrying'
+    else:
+        decision = 'contact support to unlock account'
+
+    explanation = FraudExplanation(
+        fraud_score_id=fraud_score_id,
+        top_factors=shap_contributions,
+        explanation_text=explanation_text,
+        confidence=Decimal(str(round(confidence, 4))),
+        recommended_action=decision,
+    )
+    db.add(explanation)
+    await db.flush()
+    return explanation
+
+
+async def create_alert(
+    db: AsyncSession,
+    transaction: Transaction,
+    decision: str,
+    explanation_text: str,
+) -> Alert | None:
+    """Write an Alert row when a transaction is challenged or blocked."""
+    if decision not in ("challenge", "block"):
+        return None
+
+    wallet_result = await db.execute(
+        select(Wallet).where(Wallet.id == transaction.sender_wallet_id)
+    )
+    wallet = wallet_result.scalar_one_or_none()
+    if wallet is None:
+        return None
+
+    alert_type = (
+        AlertType.FRAUD_BLOCK
+        if decision == "block"
+        else AlertType.FRAUD_CHALLENGE
+    )
+
+    alert = Alert(
+        user_id=wallet.user_id,
+        transaction_id=transaction.id,
+        type=alert_type,
+        message=explanation_text,
+    )
+    db.add(alert)
+    await db.flush()
+    return alert
+
 
 async def score_transaction(
     db: AsyncSession,
     transaction: Transaction,
-    device_id: UUID | None,
+    device_id,
     behavioral_trust_score: float = 50.0,
 ) -> dict:
-    """
-    Full fraud scoring pipeline for a transaction.
-    Returns a dict with decision, scores, and the fraud_score row id.
-    Writes a fraud_scores row to the database.
-    """
-    # 1. Look up device if provided
+    """Full fraud scoring pipeline — scores + writes fraud_scores + fraud_explanations."""
     device = None
     if device_id is not None:
         result = await db.execute(select(Device).where(Device.id == device_id))
         device = result.scalar_one_or_none()
 
-    # 2. Compute component risk scores
     transaction_risk = compute_transaction_risk(transaction.amount)
     device_risk = compute_device_risk(device)
     behavioral_risk = compute_behavioral_risk(behavioral_trust_score)
 
-    # 3. Call ML service with transaction context
     ml_payload = {
         'transaction_id': str(transaction.id),
         'transaction_amt': float(transaction.amount),
@@ -135,19 +203,17 @@ async def score_transaction(
     }
     ml_result = await call_ml_service(ml_payload)
     ml_score = float(ml_result.get('risk_score', 0.4))
+    shap_contributions = ml_result.get('feature_contributions', [])
+    confidence = float(ml_result.get('confidence', 0.5))
 
-    # 4. Compute final weighted score
     final_score = compute_weighted_score(
         ml_score=ml_score,
         behavioral_risk=behavioral_risk,
         transaction_risk=transaction_risk,
         device_risk=device_risk,
     )
-
-    # 5. Make decision
     decision = make_decision(final_score)
 
-    # 6. Write fraud_scores row
     fraud_score_row = FraudScore(
         transaction_id=transaction.id,
         transaction_deviation_score=Decimal(str(transaction_risk)),
@@ -158,10 +224,21 @@ async def score_transaction(
         synthetic_identity_score=Decimal(str(ml_score)),
         final_risk_score=Decimal(str(final_score)),
         decision=decision,
-        model_version=ml_result.get('model_version', 'xgboost-v1'),
+        model_version=ml_result.get('model_version', 'xgboost-v1-shap'),
     )
     db.add(fraud_score_row)
     await db.flush()
+
+    component_scores = {
+        'final_risk_score': final_score,
+        'device_risk': device_risk,
+        'behavioral_risk': behavioral_risk,
+        'transaction_risk': transaction_risk,
+    }
+    explanation = await write_explanation(
+        db, fraud_score_row.id, shap_contributions, component_scores, confidence
+    )
+    await create_alert(db, transaction, decision, explanation.explanation_text)
 
     return {
         'fraud_score_id': str(fraud_score_row.id),
@@ -171,6 +248,7 @@ async def score_transaction(
         'behavioral_risk': behavioral_risk,
         'device_risk': device_risk,
         'transaction_risk': transaction_risk,
-        'confidence': float(ml_result.get('confidence', 0.5)),
-        'model_version': ml_result.get('model_version', 'xgboost-v1'),
+        'confidence': confidence,
+        'model_version': ml_result.get('model_version', 'xgboost-v1-shap'),
+        'shap_contributions': shap_contributions,
     }
