@@ -21,6 +21,24 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// On 401 (token expired / missing): clear token and redirect to login.
+// This prevents the "Could not load case" / CORS-looking error on expired sessions.
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      typeof window !== "undefined" &&
+      error?.response?.status === 401
+    ) {
+      localStorage.removeItem("access_token");
+      // Preserve current path so login can redirect back
+      const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.href = `/login?returnTo=${returnTo}`;
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Expose token helpers for login/logout flows
 export function setAuthToken(token: string): void {
   if (typeof window !== "undefined") {
@@ -33,3 +51,4 @@ export function clearAuthToken(): void {
     localStorage.removeItem("access_token");
   }
 }
+

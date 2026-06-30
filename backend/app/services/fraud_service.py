@@ -1,4 +1,4 @@
-﻿import httpx
+import httpx
 from decimal import Decimal
 from uuid import UUID
 
@@ -10,6 +10,7 @@ from app.models.enums import AlertType, FraudDecision
 from app.models.fraud import Alert, FraudExplanation, FraudScore
 from app.models.identity import Device
 from app.models.payments import Transaction, Wallet
+from app.services import blockchain_service
 
 settings = get_settings()
 
@@ -175,6 +176,39 @@ async def create_alert(
     db.add(alert)
     await db.flush()
     return alert
+
+
+async def publish_case_to_blockchain(db: AsyncSession, case_id, transaction_id) -> dict:
+    """Publish device + account fraud signals on-chain for a confirmed fraud case."""
+    tx_result = await db.execute(select(Transaction).where(Transaction.id == transaction_id))
+    transaction = tx_result.scalar_one_or_none()
+    if transaction is None:
+        return {"published": False, "reason": "transaction not found"}
+
+    wallet_result = await db.execute(select(Wallet).where(Wallet.id == transaction.sender_wallet_id))
+    wallet = wallet_result.scalar_one_or_none()
+
+    results = {}
+    if transaction.device_id is not None:
+        try:
+            device_result = await blockchain_service.publish_fraud_signal(
+                str(transaction.device_id), blockchain_service.ENTITY_TYPE_DEVICE
+            )
+            results["device"] = device_result
+        except Exception as exc:
+            results["device"] = {"published": False, "error": str(exc)}
+
+    if wallet is not None:
+        try:
+            account_result = await blockchain_service.publish_fraud_signal(
+                str(wallet.user_id), blockchain_service.ENTITY_TYPE_ACCOUNT
+            )
+            results["account"] = account_result
+        except Exception as exc:
+            results["account"] = {"published": False, "error": str(exc)}
+
+    return results
+
 
 
 async def score_transaction(

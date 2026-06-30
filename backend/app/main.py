@@ -34,6 +34,9 @@ def create_app() -> FastAPI:
     configure_logging()
 
     app = FastAPI(title=settings.app_name, version=settings.app_version, docs_url="/docs", redoc_url="/redoc")
+    app.add_middleware(RBACMiddleware)
+    app.add_middleware(DeviceFingerprintMiddleware)
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
@@ -41,9 +44,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.add_middleware(RBACMiddleware)
-    app.add_middleware(DeviceFingerprintMiddleware)
-    app.add_middleware(RateLimitMiddleware)
 
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")

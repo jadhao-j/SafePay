@@ -36,11 +36,22 @@ export interface FraudAlert {
   created_at: string;
 }
 
+export interface BlockchainPublishResult {
+  entity_hash: string;
+  tx_hash: string;
+  block_number: number;
+  status: string;
+}
+
 export interface FraudCase {
   case_id: string;
   transaction_id: string;
   status: "open" | "investigating" | "confirmed_fraud" | "dismissed" | "closed";
   notes: string | null;
+  blockchain?: {
+    device?: BlockchainPublishResult;
+    account?: BlockchainPublishResult;
+  };
 }
 
 export interface WalletTransaction {

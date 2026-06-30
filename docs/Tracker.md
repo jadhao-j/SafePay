@@ -15,16 +15,16 @@
 | 3 | Device & Behavioral Data Collection | ✅ | 2026-06-22 | 2026-06-23 | Device fingerprinting, telemetry, trust score, device_id on transactions |
 | 4 | Fraud Detection Engine (Core AI) | ✅ | 2026-06-26 | 2026-06-27 | XGBoost model live, fraud_scores written, explanation + alerts endpoints working |
 | 5 | Explainable AI + Alerts + Case Management | ✅ | 2026-06-28 | 2026-06-29 | SHAP live, fraud_explanations + alerts written per transaction, all 6 fraud endpoints, 4 frontend pages built |
-| 6 | Blockchain Fraud Intelligence Layer | ⬜ | | | |
+| 6 | Blockchain Fraud Intelligence Layer | ✅ | 2026-06-30 | 2026-07-01 | FraudRegistry + Reputation contracts deployed to Hardhat, Web3.py integration, auto-publish on confirmed_fraud, BlockchainPanel.tsx verified in browser |
 | 7 | Federated Learning Layer | ⬜ | | | |
 | 8 | Admin SOC Dashboard | ⬜ | | | |
 | 9 | AI Copilot | ⬜ | | | |
 | 10 | Hardening & Polish | ⬜ | | | |
 
 ## Current Phase
-**Active phase:** Phase 6 — Blockchain Fraud Intelligence Layer
-**Current focus task:** FraudRegistry.sol + Reputation.sol deployment, Web3.py backend integration, confirmed-fraud → on-chain signal pipeline
-**Blockers:** None. Phase 5 complete and verified end-to-end.
+**Active phase:** Phase 7 — Federated Learning Layer
+**Current focus task:** Flower server setup + 3 simulated bank clients
+**Blockers:** None.
 
 ## Task-Level Checklist
 
@@ -110,14 +110,15 @@
 - [x] Frontend Admin Case Detail page — status controls, notes, SHAP evidence panel
 - [x] Verified end-to-end: transfer → SHAP scored → explanation in DB → alert written → all 4 pages render
 
-### Phase 6 — Blockchain Fraud Intelligence Layer ⬜ NOT STARTED
-- [ ] Mayur's contracts merged — FraudRegistry.sol + Reputation.sol deployed to Hardhat
-- [ ] Web3.py backend integration
-- [ ] Hash function — keccak256(entity_id + salt), zero PII on chain
-- [ ] `POST /blockchain/fraud-signal/publish` — called on confirmed fraud case
-- [ ] `GET /blockchain/fraud-signal/lookup/{hash}`
-- [ ] `GET /blockchain/reputation/{hash}`
-- [ ] Confirmed fraud case → auto-publish anonymized signal to chain
+### Phase 6 — Blockchain Fraud Intelligence Layer ✅ COMPLETE
+- [x] Mayur's contracts merged — FraudRegistry.sol + Reputation.sol deployed to Hardhat
+- [x] Web3.py backend integration
+- [x] Hash function — keccak256(entity_id + salt), zero PII on chain
+- [x] POST /blockchain/fraud-signal/publish — called on confirmed fraud case
+- [x] GET /blockchain/fraud-signal/lookup/{hash}
+- [x] GET /blockchain/reputation/{hash}
+- [x] Confirmed fraud case → auto-publish anonymized signal to chain
+
 
 ### Phase 7 — Federated Learning Layer ⬜ NOT STARTED
 - [ ] Flower server (coordinator) running
@@ -170,6 +171,8 @@
 | 25 | f-string `"` inside `"` in wallet_service block path | Python f-string quote conflict | Extracted to variable `risk_score_val` before f-string |
 | 26 | `FraudDecision`, `FraudCaseStatus`, `AlertType` missing `values_callable` | Same enum casing bug as all previous phases | Fixed via Python str.replace() script inside container |
 | 27 | Fraud scoring string replacement matched 0 functions | Script used single quotes but actual file used double quotes | Fixed by first printing exact repr() of target block, then matching exactly |
+| 28 | Blockchain bank private key missing trailing hex digit | Key in compose env was 65 chars (`...78690`) instead of 66 (`...78690d`), deriving wrong unfunded address | Pulled correct key from hardhat-node startup logs |
+| 29 | `ResponseValidationError` on PATCH /fraud/case/{id} | Return type hint was `dict[str, str]` but blockchain results are nested dicts | Changed return type to plain `dict` |
 
 ## Decision Log (Phase 4 additions)
 
@@ -192,3 +195,4 @@
 | 2026-06-22/23 | Session | Phase 3 complete | Phase 4 |
 | 2026-06-26/27 | Long session | Phase 4 complete — fixed Ganesh's ML service (3 critical gaps), wired XGBoost fraud scoring into payment flow, fraud_scores written to DB, explanation + alerts endpoints live. Fixed 7 more bugs (#21-27). | Phase 5 — SHAP, alert delivery, case management |
 | 2026-06-28/29 | Long session | Phase 5 complete — SHAP TreeExplainer integrated (338 features), fraud_explanations table live, create_alert() wired, 6 fraud API endpoints verified, 4 frontend pages + shared components built (ExplanationPanel, AlertRow, CaseStatusBadge), route group layouts added. | Phase 6 — Blockchain |
+| 2026-07-01 | Long session | Phase 6 complete — Hardhat contracts compiled + deployed, blockchain_service.py Web3.py integration, 3 blockchain routes live, auto-publish on confirmed_fraud, BlockchainPanel.tsx rendering in browser with real tx hashes | Phase 7 — Federated Learning |

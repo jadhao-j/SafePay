@@ -71,6 +71,8 @@ class FraudCase(UUIDMixin, TimestampMixin, Base):
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    blockchain_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
 
 
 class Alert(UUIDMixin, TimestampMixin, Base):

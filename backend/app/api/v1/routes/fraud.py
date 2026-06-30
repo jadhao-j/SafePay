@@ -1,4 +1,4 @@
-﻿"""Fraud detection endpoints — Phase 5 with SHAP explanations."""
+"""Fraud detection endpoints — Phase 5 with SHAP explanations."""
 
 from uuid import UUID
 
@@ -11,6 +11,7 @@ from app.core.deps import get_current_user_id
 from app.models.fraud import Alert, FraudCase, FraudExplanation, FraudScore
 from app.models.enums import FraudCaseStatus
 from app.schemas.fraud import FraudCaseCreateRequest
+from app.services.fraud_service import publish_case_to_blockchain
 
 router = APIRouter(prefix='/fraud', tags=['fraud'])
 
@@ -139,6 +140,7 @@ async def get_case(
         'transaction_id': str(case.transaction_id),
         'status': case.status.value,
         'notes': case.notes,
+        'blockchain': case.blockchain_data,
     }
 
 
@@ -148,7 +150,7 @@ async def update_case(
     status_update: dict,
     db: AsyncSession = Depends(get_session),
     user_id=Depends(get_current_user_id),
-) -> dict[str, str]:
+) -> dict:
     """Update fraud case status — for fraud analysts."""
     result = await db.execute(select(FraudCase).where(FraudCase.id == case_id))
     case = result.scalar_one_or_none()
@@ -166,4 +168,16 @@ async def update_case(
         case.notes = status_update['notes']
 
     await db.commit()
-    return {'case_id': case_id, 'status': case.status.value}
+
+    if case.status == FraudCaseStatus.CONFIRMED_FRAUD and not case.blockchain_data:
+        blockchain_result = await publish_case_to_blockchain(db, case.id, case.transaction_id)
+        case.blockchain_data = blockchain_result
+        await db.commit()
+
+    return {
+        'case_id': str(case.id),
+        'transaction_id': str(case.transaction_id),
+        'status': case.status.value,
+        'notes': case.notes,
+        'blockchain': case.blockchain_data,
+    }

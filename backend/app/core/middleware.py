@@ -14,6 +14,22 @@ from app.core.security import decode_token
 
 settings = get_settings()
 
+
+def _cors_json(status_code: int, content: dict, request: Request) -> JSONResponse:
+    """Return a JSONResponse with CORS headers pre-attached.
+
+    BaseHTTPMiddleware short-circuits bypass CORSMiddleware, so we inject
+    Access-Control-Allow-Origin manually here on every early-exit response.
+    Without this the browser can't read the 401/429 body and reports a CORS error.
+    """
+    origin = request.headers.get("origin", "")
+    allowed = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+    allow_origin = origin if origin in allowed else (allowed[0] if allowed else "*")
+    resp = JSONResponse(status_code=status_code, content=content)
+    resp.headers["Access-Control-Allow-Origin"] = allow_origin
+    resp.headers["Access-Control-Allow-Credentials"] = "true"
+    return resp
+
 # Routes that don't require an access token
 PUBLIC_PATHS = {
     "/health",
@@ -41,7 +57,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
 
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Missing access token."})
+            return _cors_json(status.HTTP_401_UNAUTHORIZED, {"detail": "Missing access token."}, request)
 
         token = auth_header.removeprefix("Bearer ").strip()
 
@@ -52,7 +68,7 @@ class RBACMiddleware(BaseHTTPMiddleware):
             else:
                 payload = decode_token(token)
         except Exception:
-            return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Invalid or expired token."})
+            return _cors_json(status.HTTP_401_UNAUTHORIZED, {"detail": "Invalid or expired token."}, request)
 
         request.state.user_id = payload.get("sub")
         request.state.role = payload.get("role", "user")
@@ -92,10 +108,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         if current > limit:
             ttl = await redis_client.ttl(key)
-            return JSONResponse(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                content={"detail": "Too many requests. Please slow down."},
-                headers={"Retry-After": str(max(ttl, 1))},
+            resp = _cors_json(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                {"detail": "Too many requests. Please slow down."},
+                request,
             )
+            resp.headers["Retry-After"] = str(max(ttl, 1))
+            return resp
 
         return await call_next(request)

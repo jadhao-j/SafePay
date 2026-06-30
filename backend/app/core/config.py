@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     refresh_token_expires_days: int = Field(default=7)
     device_fingerprint_salt: str = Field(default="")
     log_level: str = Field(default="info")
+    blockchain_rpc_url: str = Field(default="http://hardhat-node:8545")
+    fraud_registry_address: str = Field(default="")
+    reputation_address: str = Field(default="")
+    blockchain_bank_private_key: str = Field(default="")
+    blockchain_hash_salt: str = Field(default="safepay-salt-v1")
 
 
 @lru_cache(maxsize=1)

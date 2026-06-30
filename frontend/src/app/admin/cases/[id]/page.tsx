@@ -9,6 +9,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import CaseStatusBadge, { type CaseStatus } from "@/components/admin/CaseStatusBadge";
 import ExplanationPanel from "@/components/user/ExplanationPanel";
+import BlockchainPanel from "@/components/admin/BlockchainPanel";
+
 import {
   fetchCase,
   updateCase,
@@ -292,23 +294,6 @@ export default function AdminCaseDetailPage(): JSX.Element {
                     {saveSuccess ? "✓ Saved" : saving ? "Saving…" : "Save Changes"}
                   </button>
 
-                  {/* Confirmed fraud → publish hint */}
-                  {selectedStatus === "confirmed_fraud" && (
-                    <div
-                      style={{
-                        marginTop: "14px",
-                        padding: "12px",
-                        borderRadius: "8px",
-                        background: "rgba(239,68,68,0.08)",
-                        border: "1px solid rgba(239,68,68,0.2)",
-                        fontSize: "12px",
-                        color: "#EF4444",
-                        lineHeight: "1.5",
-                      }}
-                    >
-                      ⛓ After saving, consider publishing an anonymized fraud signal to the blockchain ledger via <strong>/blockchain/fraud-signal/publish</strong> (Phase 6).
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -347,6 +332,9 @@ export default function AdminCaseDetailPage(): JSX.Element {
                     No SHAP explanation available for this transaction.
                   </div>
                 )}
+
+                <BlockchainPanel caseData={caseData} />
+
               </div>
             </div>
           )}
