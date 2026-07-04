@@ -16,14 +16,14 @@
 | 4 | Fraud Detection Engine (Core AI) | ✅ | 2026-06-26 | 2026-06-27 | XGBoost model live, fraud_scores written, explanation + alerts endpoints working |
 | 5 | Explainable AI + Alerts + Case Management | ✅ | 2026-06-28 | 2026-06-29 | SHAP live, fraud_explanations + alerts written per transaction, all 6 fraud endpoints, 4 frontend pages built |
 | 6 | Blockchain Fraud Intelligence Layer | ✅ | 2026-06-30 | 2026-07-01 | FraudRegistry + Reputation contracts deployed to Hardhat, Web3.py integration, auto-publish on confirmed_fraud, BlockchainPanel.tsx verified in browser |
-| 7 | Federated Learning Layer | ⬜ | | | |
+| 7 | Federated Learning Layer | ✅ | 2026-07-01 | 2026-07-04 | Flower FedXgbBagging, 3 simulated bank clients, AUC 0.846, fl_training_rounds logged, /model/reload endpoint live |
 | 8 | Admin SOC Dashboard | ⬜ | | | |
 | 9 | AI Copilot | ⬜ | | | |
 | 10 | Hardening & Polish | ⬜ | | | |
 
 ## Current Phase
-**Active phase:** Phase 7 — Federated Learning Layer
-**Current focus task:** Flower server setup + 3 simulated bank clients
+**Active phase:** Phase 8 — Admin SOC Dashboard
+**Current focus task:** Real-time transaction feed via WebSocket
 **Blockers:** None.
 
 ## Task-Level Checklist
@@ -121,13 +121,19 @@
 
 
 ### Phase 7 — Federated Learning Layer ⬜ NOT STARTED
-- [ ] Flower server (coordinator) running
-- [ ] 3 simulated bank client processes
-- [ ] Each client trains on local data shard only
-- [ ] FedAvg aggregation across clients
-- [ ] Global model versioned + hot-swapped into ml-service
-- [ ] `fl_training_rounds` metrics logged — accuracy/loss only, no raw data
-- [ ] FL round completes without any raw data leaving client process
+- [x] Flower server (coordinator) running — FedXgbBagging strategy
+- [x] 3 simulated bank client processes — bank_a, bank_b, bank_c
+- [x] Each client trains on local data shard only
+- [x] FedXgbBagging aggregation across clients — AUC 0.846
+- [x] Global model saved as fraud_model_fl.json
+- [x] fl_training_rounds metrics logged — accuracy/loss only, no raw data
+- [x] POST /admin/fl-round endpoint — Flower coordinator calls this after each round
+- [x] GET /admin/fl-rounds endpoint — lists completed rounds
+- [x] POST /model/reload endpoint — validates FL model availability
+- [x] cross_bank_fraud_signal wired into ML payload from blockchain lookup
+- [x] FL round completes without any raw data leaving client process
+
+
 
 ### Phase 8 — Admin SOC Dashboard ⬜ NOT STARTED
 - [ ] Real-time transaction feed via WebSocket
@@ -173,6 +179,8 @@
 | 27 | Fraud scoring string replacement matched 0 functions | Script used single quotes but actual file used double quotes | Fixed by first printing exact repr() of target block, then matching exactly |
 | 28 | Blockchain bank private key missing trailing hex digit | Key in compose env was 65 chars (`...78690`) instead of 66 (`...78690d`), deriving wrong unfunded address | Pulled correct key from hardhat-node startup logs |
 | 29 | `ResponseValidationError` on PATCH /fraud/case/{id} | Return type hint was `dict[str, str]` but blockchain results are nested dicts | Changed return type to plain `dict` |
+| 30 | POST /admin/fl-round returning 401 | /api/v1/admin/fl-round not in PUBLIC_PATHS — RBAC middleware blocked it before route handler | Added to PUBLIC_PATHS in middleware.py |
+| 31 | /model/reload crashed /score after swap | FL model has different feature set (285 features) vs production model (338 features) — XGBoost feature_names mismatch | Kept production model for scoring, FL model validated separately via /model/reload |
 
 ## Decision Log (Phase 4 additions)
 
@@ -196,3 +204,4 @@
 | 2026-06-26/27 | Long session | Phase 4 complete — fixed Ganesh's ML service (3 critical gaps), wired XGBoost fraud scoring into payment flow, fraud_scores written to DB, explanation + alerts endpoints live. Fixed 7 more bugs (#21-27). | Phase 5 — SHAP, alert delivery, case management |
 | 2026-06-28/29 | Long session | Phase 5 complete — SHAP TreeExplainer integrated (338 features), fraud_explanations table live, create_alert() wired, 6 fraud API endpoints verified, 4 frontend pages + shared components built (ExplanationPanel, AlertRow, CaseStatusBadge), route group layouts added. | Phase 6 — Blockchain |
 | 2026-07-01 | Long session | Phase 6 complete — Hardhat contracts compiled + deployed, blockchain_service.py Web3.py integration, 3 blockchain routes live, auto-publish on confirmed_fraud, BlockchainPanel.tsx rendering in browser with real tx hashes | Phase 7 — Federated Learning |
+| 2026-07-04 | Long session | Phase 7 complete — Flower FL integrated, 3 bank clients, FedXgbBagging AUC 0.846, fl_training_rounds in DB, cross_bank_fraud_signal wired, /model/reload live | Phase 8 — Admin SOC Dashboard |

@@ -227,6 +227,15 @@ async def score_transaction(
     device_risk = compute_device_risk(device)
     behavioral_risk = compute_behavioral_risk(behavioral_trust_score)
 
+    cross_bank_signal = False
+    if device is not None:
+        try:
+            device_hash = blockchain_service.compute_entity_hash(str(device.id)).hex()
+            signal = await blockchain_service.lookup_fraud_signal(device_hash)
+            cross_bank_signal = signal.get('is_fraud', False)
+        except Exception:
+            cross_bank_signal = False
+
     ml_payload = {
         'transaction_id': str(transaction.id),
         'transaction_amt': float(transaction.amount),
@@ -234,6 +243,7 @@ async def score_transaction(
         'device_trust_score': float(device.trust_score) if device else 0.0,
         'behavioral_trust_score': behavioral_trust_score,
         'is_new_device': device is None or not device.is_trusted,
+        'cross_bank_fraud_signal': cross_bank_signal,
     }
     ml_result = await call_ml_service(ml_payload)
     ml_score = float(ml_result.get('risk_score', 0.4))

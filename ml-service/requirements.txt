@@ -6,3 +6,5 @@ scikit-learn
 xgboost
 joblib
 shap
+flwr>=1.0.0
+httpx
