@@ -1,6 +1,10 @@
 import httpx
 from decimal import Decimal
 from uuid import UUID
+import json
+from datetime import datetime, timezone
+
+from app.core.redis import redis_client
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -209,7 +213,22 @@ async def publish_case_to_blockchain(db: AsyncSession, case_id, transaction_id) 
 
     return results
 
-
+async def publish_transaction_event(transaction: Transaction, decision: str, final_risk_score: float) -> None:
+    """Publish a committed transaction's outcome to the admin live-feed channel."""
+    payload = {
+        "transaction_id": str(transaction.id),
+        "amount": str(transaction.amount),
+        "currency": transaction.currency,
+        "payment_type": transaction.payment_type.value,
+        "decision": decision,
+        "final_risk_score": final_risk_score,
+        "status": transaction.status.value,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        await redis_client.publish("admin:tx-feed", json.dumps(payload))
+    except Exception:
+        pass  # live feed is best-effort; never let it break a payment
 
 async def score_transaction(
     db: AsyncSession,
@@ -283,6 +302,7 @@ async def score_transaction(
         db, fraud_score_row.id, shap_contributions, component_scores, confidence
     )
     await create_alert(db, transaction, decision, explanation.explanation_text)
+    await publish_transaction_event(transaction, decision, final_score)
 
     return {
         'fraud_score_id': str(fraud_score_row.id),

@@ -135,15 +135,20 @@
 
 
 
-### Phase 8 — Admin SOC Dashboard ⬜ NOT STARTED
-- [ ] Real-time transaction feed via WebSocket
-- [ ] Fraud heatmap visualization
-- [ ] Risk score distribution charts
-- [ ] Device intelligence view
-- [ ] Merchant management view
-- [ ] User management view
-- [ ] Behavioral analytics aggregate view
-- [ ] Live risk score updates via Redis pub/sub
+
+### Phase 8 — Admin SOC Dashboard 🟦 IN PROGRESS
+- [x] GET /admin/dashboard/overview — KPIs verified
+- [x] GET /admin/dashboard/heatmap — fraud distribution by payment_type and decision
+- [x] GET /admin/devices — device intelligence, ordered by trust score
+- [x] GET /admin/merchants — merchant list ordered by risk rating
+- [x] GET /admin/investigations — fraud cases with optional status filter
+- [x] WebSocket /ws/admin/feed — real-time transaction events via Redis pub/sub
+- [x] publish_transaction_event() wired into score_transaction() pipeline
+- [x] /health exempted from RateLimitMiddleware
+- [ ] Frontend SOC Overview Dashboard page
+- [ ] Frontend Fraud Heatmap page
+- [ ] Frontend Device Intelligence page
+- [ ] Frontend Merchant Management page
 
 ### Phase 9 — AI Copilot ⬜ NOT STARTED
 - [ ] LangGraph agent with tools: explain-transaction, explain-risk-score, recommend-security-action

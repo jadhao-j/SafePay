@@ -2,10 +2,10 @@
 
 from decimal import Decimal
 from uuid import UUID
-
+from app.services.fraud_service import publish_transaction_event
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from app.services import auth_service
 from app.models.enums import PaymentType, TransactionStatus
 from app.models.identity import AuditLog, User
 from app.models.payments import Merchant, Transaction, Wallet
@@ -155,8 +155,7 @@ async def transfer_p2p(
     if receiver_wallet.status != "active":
         raise ValueError("Receiver wallet is not active.")
 
-    sender_wallet.balance = sender_wallet.balance - amount
-    receiver_wallet.balance = receiver_wallet.balance + amount
+    
 
     txn = Transaction(
         sender_wallet_id=sender_wallet.id,
@@ -164,7 +163,7 @@ async def transfer_p2p(
         amount=amount,
         currency=sender_wallet.currency,
         payment_type=PaymentType.P2P,
-        status=TransactionStatus.COMPLETED,
+        status=TransactionStatus.PENDING,
         device_id=device_id,
         idempotency_key=idempotency_key,
     )
@@ -173,10 +172,39 @@ async def transfer_p2p(
 
     behavioral_data = await _get_trust_score(db, sender_user_id)
     fraud_result = await fraud_service.score_transaction(db, txn, device_id, behavioral_data["trust_score"])
+
     if fraud_result["decision"] == "block":
-        await db.rollback()
+        txn.status = TransactionStatus.BLOCKED
+        await db.flush()
+        await _write_audit_log(
+            db,
+            sender_user_id,
+            "payment.p2p_transfer",
+            {"amount": str(amount), "receiver_user_id": str(receiver_user.id), "fraud_decision": fraud_result["decision"]},
+        )
+        await db.commit()
+        await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
         risk_score_val = fraud_result["final_risk_score"]
         raise ValueError(f"Transaction blocked. Risk score: {risk_score_val:.2f}")
+
+    if fraud_result["decision"] == "challenge":
+        txn.status = TransactionStatus.CHALLENGED
+        await db.flush()
+        await auth_service.send_otp(str(txn.id))
+        await _write_audit_log(
+            db,
+            sender_user_id,
+            "payment.p2p_transfer",
+            {"amount": str(amount), "receiver_user_id": str(receiver_user.id), "fraud_decision": fraud_result["decision"]},
+        )
+        await db.commit()
+        await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
+        return txn
+
+    sender_wallet.balance = sender_wallet.balance - amount
+    receiver_wallet.balance = receiver_wallet.balance + amount
+    txn.status = TransactionStatus.COMPLETED
+    await db.flush()
 
     await _write_audit_log(
         db,
@@ -185,6 +213,7 @@ async def transfer_p2p(
         {"amount": str(amount), "receiver_user_id": str(receiver_user.id), "fraud_decision": fraud_result["decision"]},
     )
     await db.commit()
+    await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
     return txn
 
 
@@ -238,8 +267,7 @@ async def pay_merchant(
     if receiver_wallet.status != "active":
         raise ValueError("Merchant wallet is not active.")
 
-    sender_wallet.balance = sender_wallet.balance - amount
-    receiver_wallet.balance = receiver_wallet.balance + amount
+    
 
     txn = Transaction(
         sender_wallet_id=sender_wallet.id,
@@ -248,7 +276,7 @@ async def pay_merchant(
         amount=amount,
         currency=sender_wallet.currency,
         payment_type=PaymentType.MERCHANT,
-        status=TransactionStatus.COMPLETED,
+        status=TransactionStatus.PENDING,
         device_id=device_id,
         idempotency_key=idempotency_key,
     )
@@ -257,10 +285,39 @@ async def pay_merchant(
 
     behavioral_data = await _get_trust_score(db, sender_user_id)
     fraud_result = await fraud_service.score_transaction(db, txn, device_id, behavioral_data["trust_score"])
+
     if fraud_result["decision"] == "block":
-        await db.rollback()
+        txn.status = TransactionStatus.BLOCKED
+        await db.flush()
+        await _write_audit_log(
+            db,
+            sender_user_id,
+            "payment.merchant_pay",
+            {"amount": str(amount), "merchant_id": str(merchant.id), "fraud_decision": fraud_result["decision"]},
+        )
+        await db.commit()
+        await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
         risk_score_val = fraud_result["final_risk_score"]
         raise ValueError(f"Transaction blocked. Risk score: {risk_score_val:.2f}")
+
+    if fraud_result["decision"] == "challenge":
+        txn.status = TransactionStatus.CHALLENGED
+        await db.flush()
+        await auth_service.send_otp(str(txn.id))
+        await _write_audit_log(
+            db,
+            sender_user_id,
+            "payment.merchant_pay",
+            {"amount": str(amount), "merchant_id": str(merchant.id), "fraud_decision": fraud_result["decision"]},
+        )
+        await db.commit()
+        await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
+        return txn
+
+    sender_wallet.balance = sender_wallet.balance - amount
+    receiver_wallet.balance = receiver_wallet.balance + amount
+    txn.status = TransactionStatus.COMPLETED
+    await db.flush()
 
     await _write_audit_log(
         db,
@@ -269,6 +326,7 @@ async def pay_merchant(
         {"amount": str(amount), "merchant_id": str(merchant.id), "fraud_decision": fraud_result["decision"]},
     )
     await db.commit()
+    await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
     return txn
 
 
@@ -341,3 +399,40 @@ async def send_upi(
         idempotency_key=idempotency_key,
         note=note,
     )
+
+async def verify_challenge(db: AsyncSession, user_id: UUID, transaction_id: str, code: str) -> Transaction:
+    """Verify a payment-challenge OTP and, if valid, complete the held transaction."""
+
+    result = await db.execute(select(Transaction).where(Transaction.id == UUID(transaction_id)))
+    txn = result.scalar_one_or_none()
+    if txn is None:
+        raise ValueError("Transaction not found.")
+
+    if txn.status != TransactionStatus.CHALLENGED:
+        raise ValueError(f"Transaction is not awaiting verification (status: {txn.status.value}).")
+
+    sender_wallet = await db.get(Wallet, txn.sender_wallet_id)
+    if sender_wallet is None or sender_wallet.user_id != user_id:
+        raise ValueError("Transaction not found.")
+
+    valid = await auth_service.verify_otp_by_key(str(txn.id), code)
+    if not valid:
+        raise ValueError("Invalid or expired verification code.")
+
+    sender_result = await db.execute(select(Wallet).where(Wallet.id == txn.sender_wallet_id).with_for_update())
+    sender_wallet = sender_result.scalar_one_or_none()
+    receiver_result = await db.execute(select(Wallet).where(Wallet.id == txn.receiver_wallet_id).with_for_update())
+    receiver_wallet = receiver_result.scalar_one_or_none()
+    if sender_wallet is None or receiver_wallet is None:
+        raise ValueError("Wallet not found.")
+    if sender_wallet.balance < txn.amount:
+        raise ValueError("Insufficient balance to complete verified transaction.")
+
+    sender_wallet.balance = sender_wallet.balance - txn.amount
+    receiver_wallet.balance = receiver_wallet.balance + txn.amount
+    txn.status = TransactionStatus.COMPLETED
+    await db.flush()
+
+    await _write_audit_log(db, user_id, "payment.challenge_verified", {"transaction_id": str(txn.id)})
+    await db.commit()
+    return txn

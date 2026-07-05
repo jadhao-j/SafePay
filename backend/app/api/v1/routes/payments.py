@@ -14,6 +14,7 @@ from app.schemas.payments import (
     QRPayRequest,
     RecurringPaymentRequest,
     UpiSendRequest,
+    VerifyChallengeRequest
 )
 from app.services import wallet_service
 
@@ -138,6 +139,18 @@ async def pay_merchant(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {'transaction_id': str(txn.id), 'status': txn.status.value, 'amount': str(txn.amount)}
 
+@router.post('/{transaction_id}/verify-challenge')
+async def verify_challenge(
+    transaction_id: str,
+    payload: VerifyChallengeRequest,
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> dict[str, str | None]:
+    try:
+        txn = await wallet_service.verify_challenge(db, user_id, transaction_id, payload.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {'transaction_id': str(txn.id), 'status': txn.status.value, 'amount': str(txn.amount)}
 
 @router.post('/recurring', status_code=status.HTTP_501_NOT_IMPLEMENTED)
 async def create_recurring_payment(payload: RecurringPaymentRequest) -> dict[str, str]:

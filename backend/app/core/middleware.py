@@ -97,6 +97,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     AUTH_MAX_REQUESTS = 10
 
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        if request.url.path == "/health":
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         path = request.url.path
         is_auth_path = path in self.AUTH_PATHS

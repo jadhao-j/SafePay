@@ -67,3 +67,8 @@ class RecurringPaymentRequest(BaseModel):
     currency: str = "INR"
     cadence: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1)
+
+class VerifyChallengeRequest(BaseModel):
+    """Payload to verify a payment challenge OTP."""
+
+    code: str = Field(min_length=4, max_length=8)

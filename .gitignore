@@ -61,3 +61,11 @@ fix_*.py
 wire_*.py
 add_*.py
 write_*.py
+
+# Test JSON payloads at project root
+*.json
+!package.json
+ws_test.js
+package-lock.json
+
+node_modules/

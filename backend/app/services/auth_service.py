@@ -100,6 +100,20 @@ async def verify_otp(db: AsyncSession, identifier: str, code: str) -> bool:
 
     return True
 
+async def verify_otp_by_key(key: str, code: str) -> bool:
+    """Verify an OTP stored under an arbitrary Redis key (not a user identifier),
+    without the user-lookup/activation side effects of verify_otp. Used for
+    payment-challenge verification, keyed by transaction id."""
+
+    stored_hash = await redis_client.get(f"otp:{key}")
+    if stored_hash is None:
+        return False
+
+    if not verify_otp_hash(code, key, stored_hash):
+        return False
+
+    await redis_client.delete(f"otp:{key}")
+    return True
 
 async def login_user(db: AsyncSession, identifier: str, password: str) -> tuple[User, TokenResponse] | None:
     """Authenticate a user and issue an access + refresh token pair."""
