@@ -65,6 +65,7 @@ export interface WalletTransaction {
   status: "pending" | "approved" | "challenged" | "blocked" | "completed" | "failed" | "reversed";
   device_id: string | null;
   idempotency_key: string;
+  recipient_identifier?: string | null;
   created_at: string;
   updated_at: string;
 }

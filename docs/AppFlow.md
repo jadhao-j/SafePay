@@ -1,5 +1,7 @@
 # Appflow.md — User Journey & Application Flow
 
+> **2026-07-12 update:** visual direction moved to the v2 dark/editorial system (see Design.md). Journeys, screens, and flow logic below are unchanged — this update only affects how screens look and how navigation renders across mobile vs. desktop (§3).
+
 ## 1. User Journeys
 
 ### Journey A — New User Onboarding
@@ -63,8 +65,10 @@
 
 ## 3. Navigation Structure
 
+Navigation is one structure with two renderings, switched at the `desktop` breakpoint (≥1024px, see Design.md §8) — not two separate nav systems to maintain.
+
 ```
-User App
+User App — mobile/tablet (< 1024px): bottom tab bar
 ├── Home (tab)
 ├── Send/Pay (tab → modal flow)
 ├── History (tab)
@@ -74,7 +78,17 @@ User App
     ├── Trusted Devices
     └── Settings
 
-Admin Console
+User App — desktop (≥ 1024px): fixed left sidebar, same 5 destinations
+├── Home
+├── Send/Pay (opens as centered modal/panel, not full-screen route)
+├── History
+├── Wallet
+└── Profile
+    ├── Security Score
+    ├── Trusted Devices
+    └── Settings
+
+Admin Console (unchanged — desktop-first by design, no mobile rendering)
 ├── Overview
 ├── Alerts → Case Detail
 ├── Heatmap
@@ -83,6 +97,8 @@ Admin Console
 ├── Users
 └── Behavioral Analytics
 ```
+
+**Note (2026-07-12):** Send/Pay, Scan QR, Amount Entry, and Review & Confirm are full-screen routes on mobile but should render as a centered modal (max-width 480px) over the dashboard on desktop, per Design.md §8 — a payment confirmation shouldn't sprawl edge-to-edge on a wide screen.
 
 ## 4. Key UX Principles
 

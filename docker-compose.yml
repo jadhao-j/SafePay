@@ -65,11 +65,12 @@ services:
       REPUTATION_ADDRESS: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
       BLOCKCHAIN_BANK_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
       BLOCKCHAIN_HASH_SALT: "safepay-salt-v1"
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,10 +108,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', res => process.exit(res.statusCode >= 200 && res.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      interval: 30s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
     networks:
       - safepay-net
     mem_limit: 2048m

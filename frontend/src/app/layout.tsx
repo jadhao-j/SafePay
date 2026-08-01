@@ -1,30 +1,47 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, DM_Sans, IBM_Plex_Mono } from "next/font/google";
-
+import localFont from "next/font/local";
 import "./globals.css";
-
-const displayFont = Bebas_Neue({
-  variable: "--font-bebas-neue",
-  subsets: ["latin"],
-  weight: "400"
-});
-
-const uiFont = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"]
-});
-
-const monoFont = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "600", "700"]
-});
 
 export const metadata: Metadata = {
   title: "SafePay",
   description: "AI-powered secure payments platform"
 };
+
+const dmSans = localFont({
+  src: [
+    { path: "../../public/fonts/dm-sans-400.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/dm-sans-500.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/dm-sans-700.woff2", weight: "700", style: "normal" }
+  ],
+  variable: "--font-dm-sans",
+  display: "swap"
+});
+
+const ibmPlexMono = localFont({
+  src: [
+    { path: "../../public/fonts/ibm-plex-mono-400.woff2", weight: "400", style: "normal" },
+    { path: "../../public/fonts/ibm-plex-mono-500.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/ibm-plex-mono-600.woff2", weight: "600", style: "normal" },
+    { path: "../../public/fonts/ibm-plex-mono-700.woff2", weight: "700", style: "normal" }
+  ],
+  variable: "--font-ibm-plex-mono",
+  display: "swap"
+});
+
+const spaceGrotesk = localFont({
+  src: [
+    { path: "../../public/fonts/space-grotesk-500.woff2", weight: "500", style: "normal" },
+    { path: "../../public/fonts/space-grotesk-700.woff2", weight: "700", style: "normal" }
+  ],
+  variable: "--font-space-grotesk",
+  display: "swap"
+});
+
+const bebasNeue = localFont({
+  src: [{ path: "../../public/fonts/bebas-neue-400.woff2", weight: "400", style: "normal" }],
+  variable: "--font-bebas-neue",
+  display: "swap"
+});
 
 type RootLayoutProps = Readonly<{
   children: React.ReactNode;
@@ -32,8 +49,11 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps): JSX.Element {
   return (
-    <html lang="en">
-      <body className={`${displayFont.variable} ${uiFont.variable} ${monoFont.variable}`}>{children}</body>
+    <html
+      lang="en"
+      className={`${dmSans.variable} ${ibmPlexMono.variable} ${spaceGrotesk.variable} ${bebasNeue.variable}`}
+    >
+      <body>{children}</body>
     </html>
   );
 }

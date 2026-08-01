@@ -17,14 +17,20 @@
 | 5 | Explainable AI + Alerts + Case Management | ✅ | 2026-06-28 | 2026-06-29 | SHAP live, fraud_explanations + alerts written per transaction, all 6 fraud endpoints, 4 frontend pages built |
 | 6 | Blockchain Fraud Intelligence Layer | ✅ | 2026-06-30 | 2026-07-01 | FraudRegistry + Reputation contracts deployed to Hardhat, Web3.py integration, auto-publish on confirmed_fraud, BlockchainPanel.tsx verified in browser |
 | 7 | Federated Learning Layer | ✅ | 2026-07-01 | 2026-07-04 | Flower FedXgbBagging, 3 simulated bank clients, AUC 0.846, fl_training_rounds logged, /model/reload endpoint live |
-| 8 | Admin SOC Dashboard | ⬜ | | | |
-| 9 | AI Copilot | ⬜ | | | |
+| 8 | Admin SOC Dashboard | ✅ | 2026-07-05 | 2026-07-06 | All 4 remaining items complete: risk chart, live updates, user mgmt + actions, behavioral analytics |
+| 9 | AI Copilot | ✅ | 2026-07-08 | 2026-07-08 | LangGraph agent + 3 tools live, Gemini 1.5 Flash active, grounded answers verified, user copilot page built |
+| 10a | User App Frontend | ✅ | 2026-07-08 | 2026-07-08 | Tier 1-3 complete, 15 screens — built against v1 design tokens (now superseded, see 10a-v2) |
+| 10a-v2 | Frontend Design Pivot (v2 dark/editorial) | ✅ | 2026-07-12 | 2026-07-16 | Option B full rebuild complete. All 15 user-app screens + all 9 admin pages rebuilt with v2 dark tokens. Shared AdminPageShell + v2 globals.css keyframes added. AdminKpiPanel and AdminSocShell upgraded to pure inline styles. |
 | 10 | Hardening & Polish | ⬜ | | | |
 
 ## Current Phase
-**Active phase:** Phase 8 — Admin SOC Dashboard
-**Current focus task:** Real-time transaction feed via WebSocket
+**Active phase:** Phase 10 — Hardening & Polish
+**Current focus task:** Phase 10a-v2 COMPLETE. All 15 user-app screens and all 9 admin pages rebuilt under v2 dark/editorial design system. Next: Phase 10 hardening pass.
 **Blockers:** None.
+
+> **Note (2026-07-12):** Design.md was revised to v2 mid-project, after Phase 10a and Phase 8's frontend were already fully built and verified. Every one of the 15 Phase 10a screens and all 8 admin pages currently use now-retired v1 tokens. Option B (full rebuild against v2, not the faster Option A token-only swap) was chosen deliberately — see Decision Log — so this phase re-touches nearly every existing frontend file already marked complete above, not just new screens.
+
+> **Note — Phase 10a (User App Frontend)** was identified as a planning gap: AppFlow.md defines 14 user-facing screens that were never assigned to any phase checklist. Phase 10a closed this gap before final hardening.
 
 ## Task-Level Checklist
 
@@ -119,8 +125,7 @@
 - [x] GET /blockchain/reputation/{hash}
 - [x] Confirmed fraud case → auto-publish anonymized signal to chain
 
-
-### Phase 7 — Federated Learning Layer ⬜ NOT STARTED
+### Phase 7 — Federated Learning Layer ✅ COMPLETE
 - [x] Flower server (coordinator) running — FedXgbBagging strategy
 - [x] 3 simulated bank client processes — bank_a, bank_b, bank_c
 - [x] Each client trains on local data shard only
@@ -133,10 +138,7 @@
 - [x] cross_bank_fraud_signal wired into ML payload from blockchain lookup
 - [x] FL round completes without any raw data leaving client process
 
-
-
-
-### Phase 8 — Admin SOC Dashboard 🟦 IN PROGRESS
+### Phase 8 — Admin SOC Dashboard ✅ COMPLETE
 - [x] GET /admin/dashboard/overview — KPIs verified
 - [x] GET /admin/dashboard/heatmap — fraud distribution by payment_type and decision
 - [x] GET /admin/devices — device intelligence, ordered by trust score
@@ -145,17 +147,114 @@
 - [x] WebSocket /ws/admin/feed — real-time transaction events via Redis pub/sub
 - [x] publish_transaction_event() wired into score_transaction() pipeline
 - [x] /health exempted from RateLimitMiddleware
-- [ ] Frontend SOC Overview Dashboard page
-- [ ] Frontend Fraud Heatmap page
-- [ ] Frontend Device Intelligence page
-- [ ] Frontend Merchant Management page
+- [x] Real-time transaction feed via WebSocket — /ws/admin/feed, token via query param,
+      role-gated (admin/fraud_analyst/compliance_officer), Redis pub/sub channel admin:tx-feed.
+      Verified live in browser: two events (pending, then final decision) appeared in the
+      SOC dashboard feed panel with zero page refresh.
+- [x] Frontend: SOC Dashboard page — KPI panel (6 cards) + live feed panel + risk distribution bar chart, dark theme per Design.md
+- [x] Frontend: Heatmap page — payment_type × decision grid, avg risk color-coded, time window selector
+- [x] Frontend: Devices page — trust score bars, trusted/untrusted filter
+- [x] Frontend: Merchants page — risk rating bars, search filter
+- [x] Risk score distribution charts — GET /admin/dashboard/risk-distribution (0.1-wide buckets), bar chart on dashboard updates live via WS feed
+- [x] Live risk score updates via Redis pub/sub — same WS feed (admin:tx-feed) increments histogram client-side on each event, no separate stream needed
+- [x] User management view — GET /admin/users, role/status badges, security score bars
+- [x] User analyst actions — PATCH /admin/users/{id}/status (suspend/freeze/activate), admin-only, optimistic UI with loading/error states
+- [x] Behavioral analytics aggregate view — GET /admin/dashboard/behavioral-analytics: trust score buckets, event type breakdown, high-risk user table
+- [x] Frontend: Users page — full user table with suspend/freeze/activate actions
+- [x] Frontend: Behavioral analytics page — trust score distribution bars, event type breakdown, high-risk user table, 4 KPI cards
 
-### Phase 9 — AI Copilot ⬜ NOT STARTED
-- [ ] LangGraph agent with tools: explain-transaction, explain-risk-score, recommend-security-action
-- [ ] Copilot grounded in real `fraud_explanations` data — no hallucinated reasons
-- [ ] `POST /api/v1/copilot/ask` endpoint
-- [ ] Frontend Copilot chat UI
-- [ ] "Why was my payment blocked?" returns answer matching stored explanation
+### Phase 9 — AI Copilot ✅ COMPLETE
+- [x] LangGraph agent with 3 tools: `explain_transaction`, `explain_risk_score`, `recommend_security_action`
+- [x] Copilot grounded in real `fraud_explanations` + `fraud_scores` data — user_id scoped, no hallucinations
+- [x] `POST /api/v1/copilot/ask` endpoint — wired in `main.py`, schemas defined
+- [x] Gemini 1.5 Flash via `langchain-google-genai` — `GEMINI_API_KEY` in `.env` + docker-compose env block
+- [x] Deterministic fallback when API key absent — copilot never breaks app
+- [x] Cross-user isolation — wallet.user_id check in every tool call, 404-style on mismatch (verified)
+- [x] Frontend Copilot chat page at `src/app/(user)/copilot/page.tsx` — user light theme, chat bubbles, source tags, tool badge, ungrounded warning banner
+- [x] End-to-end verified: grounded answer with markdown formatting from Gemini confirms LLM is active
+
+### Phase 10a — User App Frontend ✅ COMPLETE
+
+> Closes the planning gap: these screens were in AppFlow.md but never assigned to a phase.
+> Backend for all of these is fully working — only the frontend shells needed building.
+
+#### Tier 1 — Critical for demo (Journey C: the main fraud detection flow)
+- [x] **Home Dashboard** (Screen 7) — wallet balance display, quick actions (Send / Scan / Copilot / Add Money), recent 5 transactions, security score ring wired to `GET /users/me/security-score`
+- [x] **Send Money Page** (Screen 8) — 3-step flow: phone/UPI input → amount (quick-amount chips) → review & confirm, calls `POST /payments/p2p/transfer`, routes by `decision`
+- [x] **Challenge Screen** (Screen 12) — 6-digit OTP input, 60s countdown timer, fraud reason from explanation API, calls `POST /payments/{id}/verify-challenge`
+- [x] **Success Screen** (Screen 13) — animated spring checkmark, receipt (amount, recipient, txn ID, timestamp), Send Another + Go Home CTAs
+- [x] **Blocked Screen** (Screen 14) — red shield, plain-language fraud reason, risk score bar, top 2 SHAP factors, "Talk to Copilot" CTA pre-fills txn ID
+
+#### Tier 2 — Good to have for complete demo
+- [x] **Wallet Page** (Screen 17) — balance card with bottom-sheet modal for add/withdraw, full transaction history list
+- [x] **Landing Page** (Screen 1) — dark hero, animated headline, stats row, 4 trust badge cards, Sign Up / Login CTAs, demo CTA block
+- [x] **Register Page** (Screen 3) — name, email/phone, password + confirm fields, password strength meter, calls `POST /auth/register`, redirects to /otp-verify
+- [x] **OTP Verification Page** (Screen 4) — 6-digit segmented input, paste support, 60s countdown + resend, success animation, redirects to /login
+- [x] **Login redirect by role** — admin/analyst/compliance_officer → /admin/cases, regular users → /home (JWT payload decoded client-side)
+
+#### Components built
+- [x] `BottomNav.tsx` — sticky 5-tab nav: Home, Send, Scan, History, Copilot. Active tab indicator.
+
+#### Tier 3 — Optional / Phase 10 polish
+- [x] **Set PIN Page** (Screen 6) — custom keypad, 6-dot indicator, enter + confirm 2-step, mismatch detection, success screen
+- [x] **Scan QR Page** (Screen 9) — live BarcodeDetector camera with animated scan line + corner brackets, manual UPI ID fallback, routes by fraud decision
+- [x] **Trusted Devices Page** (Screen 18) — trust score bars, OS device icons, 2-step revoke confirmation, `DELETE /users/me/devices/{id}`
+- [x] **Security Score Page** (Screen 19) — animated SVG ring, score label badge, 3-factor breakdown bars, contextual improvement tips
+- [x] **Profile / Settings Page** (Screen 20) — avatar card with role/status badges, info row, settings groups (Security/Payments/Account), logout
+
+#### BottomNav updated
+- [x] Tabs: Home, Send, Scan, Wallet, Profile (History + Copilot accessible from Profile and Home quick actions)
+
+#### Components — built inline (no separate files needed)
+- [x] `WalletBalanceCard` — built inline in Home + Wallet pages
+- [x] `QuickActions` — 4-button grid built inline in Home Dashboard
+- [x] `RecentTransactionsList` — built inline in Home Dashboard (5 txns, status badges)
+- [x] `ChallengeModal` — implemented as `/send/challenge/page.tsx` (routed page, not modal)
+- [x] `SuccessReceipt` — implemented as `/send/success/page.tsx` (routed page)
+- [x] `BlockedExplanation` — implemented as `/send/blocked/page.tsx` (routed page)
+
+### Phase 10a-v2 — Frontend Design Pivot 🟦 IN PROGRESS
+
+> Design.md v2 supersedes v1 after Phase 10a (15 screens) and Phase 8 (8 admin pages) were already complete and verified. This phase re-tokens/rebuilds that existing, working frontend — it does not add new screens or change any backend/AppFlow.md journey logic.
+
+#### Foundation
+- [x] `globals.css` — v2 CSS variables (--ink, --panel, --panel-2, --line, --line-2, --white, --dim, --dim-2, --acc, --acc-2, --success, --warning, --danger), replacing both v1 user light-theme vars and v1 admin dark-theme vars
+- [x] `tailwind.config.ts` — map v2 tokens, retire v1 `admin.*` and `user.*` color objects
+- [x] Space Grotesk added via `next/font/google` in `layout.tsx` — replaces Bebas Neue everywhere (admin display headings) and becomes the display face for user-app hero/balance figures
+- [x] Grain overlay + glow blob shared component/utility classes (per Design.md §4)
+- [x] `UserShell.tsx` — new responsive nav shell (bottom tab bar <1024px, left sidebar ≥1024px per Design.md §8), replaces standalone `BottomNav.tsx` usage across all 15 user-app screens
+- [x] Desktop breakpoint layout rules (max-width 1120px main content, 480px centered modal for Send/Review/Confirm on desktop, two-column Home at ≥1280px)
+
+#### User app screens — retoken/rebuild against v2 (all 15 screens from Phase 10a, structurally unchanged, visual system only)
+- [x] Home Dashboard
+- [x] Send Money flow (+ Challenge / Success / Blocked)
+- [x] Wallet — hero banner, frosted glass balance card, add/withdraw bottom-sheet modal with quick-amount chips
+- [x] Landing — (pre-existing v2 build)
+- [x] Register — spinning conic logo, glassmorphism card, animated password strength bar
+- [x] OTP Verify — dark OTP cells with violet fill border, paste support, countdown timer
+- [x] Set PIN — glowing dot indicators, dark numpad keys, success animation
+- [x] Scan QR — dark viewfinder, corner brackets, animated cyan scan line, manual fallback
+- [x] Trusted Devices — dark cards, animated trust score bars, 2-step revoke confirm
+- [x] Security Score — animated conic-gradient score ring, factor breakdown bars, recommendations
+- [x] Profile / Settings — frosted glass avatar card, conic score ring, settings groups
+- [x] Copilot Chat — spinning conic logo header, dark chat bubbles, source tags, typing indicator
+- [x] Transaction History — filter pills, search input, dark transaction rows
+
+#### Auth screens — v2 login/register system
+- [x] Login — conic spinning logo, radial gradient + dot grid bg, glassmorphism card, gradient sign-in button
+
+#### Admin console — full v2 rebuild (AdminPageShell shared sidebar + all 9 pages)
+- [x] **AdminPageShell.tsx** — new shared sidebar component: spinning conic logo, active cyan nav indicator, sign-out link
+- [x] **AdminKpiPanel.tsx** — upgraded to pure inline styles, shimmer skeleton loading
+- [x] Dashboard — KPI bar + AdminSocShell live feed + risk bar chart + recent alerts panel
+- [x] Heatmap — time-window pills, color-coded heatmap table with risk cell backgrounds
+- [x] Devices — filter pills (all/untrusted), trust score bars, status badges
+- [x] Merchants — search input, risk rating bars, category badges
+- [x] Users — search + role filter, security score bars, suspend/freeze/activate actions
+- [x] Behavioral Analytics — KPI cards, horizontal bar charts, high-risk users table
+- [x] Alerts — filter pills, SHAP explanation drawer, mark-all-read
+- [x] Cases — alert-to-case queue, case table with status badges
+- [x] Copilot (SOC) — quick-prompt 2×2 grid, dark chat bubbles, source tags, grounded/ungrounded indicators
 
 ### Phase 10 — Hardening & Polish ⬜ NOT STARTED
 - [ ] Rate limiting complete pass — all endpoints covered
@@ -195,6 +294,7 @@
 | 2026-06-26 | Challenge path allows transaction to complete (not pause) | Async OTP challenge flow requires pending transaction state — deferred to Phase 5; challenge flag in fraud_scores is sufficient for Phase 4 |
 | 2026-06-26 | Weighted formula: 35% behavioral + 30% transaction + 20% device + 15% ML | Matches PRD.md spec; behavioral signals most important since they're hardest to fake |
 | 2026-06-27 | Fraud scoring runs before `db.commit()` in payment functions | Block path can roll back cleanly; if scoring ran after commit, blocking would require a reversal transaction |
+| 2026-07-12 | Chose Option B (full rebuild) over Option A (token-swap-only) for the v2 design pivot | Portfolio/thesis-quality visual polish valued over the ~2–3 day time cost; Option A was the faster/lower-risk recommendation but Option B better serves the FYP demo goal. Accepted trade-off: re-touches all 23 already-complete frontend files (15 user + 8 admin) rather than a pure CSS variable swap. |
 
 ## Daily/Session Log
 
@@ -210,3 +310,11 @@
 | 2026-06-28/29 | Long session | Phase 5 complete — SHAP TreeExplainer integrated (338 features), fraud_explanations table live, create_alert() wired, 6 fraud API endpoints verified, 4 frontend pages + shared components built (ExplanationPanel, AlertRow, CaseStatusBadge), route group layouts added. | Phase 6 — Blockchain |
 | 2026-07-01 | Long session | Phase 6 complete — Hardhat contracts compiled + deployed, blockchain_service.py Web3.py integration, 3 blockchain routes live, auto-publish on confirmed_fraud, BlockchainPanel.tsx rendering in browser with real tx hashes | Phase 7 — Federated Learning |
 | 2026-07-04 | Long session | Phase 7 complete — Flower FL integrated, 3 bank clients, FedXgbBagging AUC 0.846, fl_training_rounds in DB, cross_bank_fraud_signal wired, /model/reload live | Phase 8 — Admin SOC Dashboard |
+| 2026-07-05/06 | Long session | Phase 8 complete — all 4 remaining admin items: risk chart (GET /admin/dashboard/risk-distribution), live WS updates, user mgmt + analyst actions, behavioral analytics. 4 frontend pages built. | Phase 9 — AI Copilot |
+| 2026-07-08 | Session | Phase 9 complete — copilot_agent.py (328 lines, 3 tools), copilot_service.py, route, schemas all verified. GEMINI_API_KEY wired into docker-compose + .env. Gemini 1.5 Flash active (markdown answers confirmed). Cross-user isolation tested. Frontend copilot chat page built at /copilot. | Phase 10a — User App Frontend |
+| 2026-07-08 | Session | Phase 10a Tier 1 complete — BottomNav.tsx (5-tab sticky nav), Home Dashboard (balance card + security score ring + quick actions + recent 5 txns), Send Money 3-step flow (routes to challenge/success/blocked by fraud decision), Challenge OTP screen (6-digit input + 60s timer + verify-challenge), Success screen (animated checkmark + receipt), Blocked screen (SHAP factors + Copilot CTA), Wallet page (gradient card + add/withdraw modal + history). | Phase 10a Tier 2 / Phase 10 |
+| 2026-07-08 | Session | Phase 10a Tier 2 complete — Landing page (dark hero, stats, trust badges, demo CTA), Register page (name/email/phone/password + strength meter, POST /auth/register), OTP verify page (segmented input + paste + 60s resend + success animation), Login role-based redirect (admin → /admin/cases, user → /home). Full onboarding flow now complete. | Phase 10 — Hardening |
+| 2026-07-08 | Session | Phase 10a Tier 3 complete — Scan QR (BarcodeDetector camera + manual fallback), Trusted Devices (trust bars + 2-step revoke), Security Score (animated SVG ring + factor breakdown + tips), Profile/Settings (avatar card + settings groups + logout), Set PIN (custom keypad + 2-step confirm). BottomNav updated to Home/Send/Scan/Wallet/Profile. Phase 10a fully complete. | Phase 10 — Hardening |
+| 2026-07-12 | Session | Design.md revised to v2 (dark/editorial, unified user+admin tokens, Space Grotesk replaces Bebas Neue). AppFlow.md updated for responsive nav (sidebar ≥1024px, centered modal for Send/Review on desktop). Reviewed Option A vs B, chose Option B (full rebuild). Tracker updated: new Phase 10a-v2 opened, re-scoping all Phase 10a + Phase 8 frontend work against v2 tokens. | Phase 10a-v2 foundation: globals.css, tailwind.config.ts, Space Grotesk, UserShell.tsx |
+| 2026-07-16 | Session | Phase 10a-v2 Batch 1 complete — Home, Send, Challenge, Success, Blocked. All v2 premium dark with frosted glass, gradients, conic shield rings. | Phase 10a-v2 Batch 2 |
+| 2026-07-16 | Session | Phase 10a-v2 **FULLY COMPLETE** — All 15 user-app screens + 9 admin pages rebuilt. User: Wallet (hero+glass card+bottom-sheet), Copilot (spinning logo, dark chat, source tags), Profile (frosted glass avatar + conic score ring + settings groups), History (filter pills + search), Security Score (animated conic ring), Trusted Devices (spring bars + 2-step revoke), Scan QR (corner brackets + scan line), Set PIN (glow dots + dark numpad), OTP Verify (dark OTP cells + paste), Register (strength bar), Login (spinning logo + dot grid). Admin: new AdminPageShell shared sidebar, AdminKpiPanel upgraded, Dashboard/Heatmap/Devices/Merchants/Users/Behavioral/Alerts/Cases/Copilot all rebuilt inline. globals.css updated: body now #050608, sp-spin/sp-shimmer/sp-pulse keyframes global. | Phase 10 — Hardening & Polish |

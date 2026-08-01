@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SafePay — Premium Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F9FC; --surface:#FFFFFF;
+    --primary:#3B82F6; --primary-dark:#1D4ED8; --violet:#8B5CF6;
+    --success:#10B981; --warning:#F59E0B; --danger:#EF4444;
+    --text-primary:#0F172A; --text-secondary:#64748B; --border:#E2E8F0;
+    --ink:#070B14;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:#12141a; font-family:'DM Sans',sans-serif;
+    padding:60px 40px; display:flex; gap:48px; flex-wrap:wrap;
+    align-items:flex-start; justify-content:center;
+  }
+  .label{
+    color:#8b93a3; font-family:'IBM Plex Mono',monospace; font-size:12px;
+    letter-spacing:1.5px; text-transform:uppercase; margin-bottom:14px; text-align:center;
+  }
+  .frame-wrap{display:flex; flex-direction:column; align-items:center;}
+  .frame{
+    width:375px; height:812px; background:var(--bg); border-radius:44px;
+    overflow:hidden; position:relative; box-shadow:0 40px 80px rgba(0,0,0,.55), 0 0 0 10px #1c1f27, 0 0 0 11px #33384a;
+  }
+  .scroll{height:100%; overflow-y:auto; -ms-overflow-style:none; scrollbar-width:none;}
+  .scroll::-webkit-scrollbar{display:none;}
+
+  /* ===== HOME ===== */
+  .hero{
+    position:relative; padding:64px 24px 90px; overflow:hidden;
+    background:
+      radial-gradient(120% 90% at 15% 0%, rgba(139,92,246,.55), transparent 60%),
+      radial-gradient(120% 90% at 100% 10%, rgba(59,130,246,.65), transparent 55%),
+      linear-gradient(160deg, #0B1220 0%, #101a33 55%, #0B1220 100%);
+  }
+  .hero::after{
+    content:''; position:absolute; inset:0;
+    background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size:18px 18px; opacity:.5;
+  }
+  .greet{color:rgba(255,255,255,.6); font-size:13px; position:relative; z-index:1;}
+  .greet strong{color:#fff; font-size:24px; font-weight:700; font-family:'Space Grotesk',sans-serif; display:block; margin-top:2px;}
+  .bell{
+    position:absolute; top:60px; right:24px; width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
+    display:flex; align-items:center; justify-content:center; z-index:1;
+    backdrop-filter:blur(6px);
+  }
+  .bell::before{content:'●'; font-size:6px; color:var(--danger); position:absolute; top:8px; right:9px;}
+
+  .balance-card{
+    position:relative; z-index:2; margin:-64px 20px 0; padding:26px 24px 22px;
+    background:rgba(255,255,255,.9); backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,.6); border-radius:22px;
+    box-shadow:0 24px 48px rgba(15,23,42,.16), 0 2px 6px rgba(15,23,42,.06);
+  }
+  .bc-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .bc-label{font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px; color:var(--text-secondary); text-transform:uppercase;}
+  .shield{
+    width:44px; height:44px; border-radius:50%; position:relative;
+    background:conic-gradient(from 0deg, #3B82F6, #8B5CF6, #10B981, #3B82F6);
+    display:flex; align-items:center; justify-content:center;
+    animation:spin 6s linear infinite;
+  }
+  .shield::before{
+    content:''; position:absolute; inset:2px; border-radius:50%; background:#fff;
+  }
+  .shield span{position:relative; z-index:1; font-size:15px; font-weight:700; color:var(--success); font-family:'Space Grotesk',sans-serif;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @media (prefers-reduced-motion:reduce){ .shield{animation:none;} }
+
+  .bc-amount{
+    font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:34px;
+    color:var(--text-primary); margin-top:10px; letter-spacing:-0.5px;
+  }
+  .bc-sub{font-size:12px; color:var(--text-secondary); margin-top:2px;}
+
+  .actions{display:flex; gap:10px; margin:20px 20px 0;}
+  .act{
+    flex:1; background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:16px 8px; text-align:center; box-shadow:0 4px 12px rgba(15,23,42,.05);
+    transition:transform .15s;
+  }
+  .act-ic{
+    width:38px; height:38px; border-radius:12px; margin:0 auto 8px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; color:#fff;
+  }
+  .act-ic.blue{background:linear-gradient(135deg,var(--primary),var(--primary-dark));}
+  .act-ic.violet{background:linear-gradient(135deg,var(--violet),#6D28D9);}
+  .act-ic.green{background:linear-gradient(135deg,var(--success),#059669);}
+  .act-ic.dark{background:linear-gradient(135deg,#1e293b,#0f172a);}
+  .act-t{font-size:12px; font-weight:500; color:var(--text-primary);}
+
+  .sec-h{display:flex; justify-content:space-between; align-items:center; margin:26px 20px 12px;}
+  .sec-h h3{font-size:15px; font-family:'Space Grotesk',sans-serif; color:var(--text-primary);}
+  .sec-h a{font-size:12px; color:var(--primary); font-weight:500;}
+
+  .tx{
+    margin:0 20px 10px; background:var(--surface); border-radius:16px; padding:14px 16px;
+    display:flex; align-items:center; gap:12px; border:1px solid var(--border);
+  }
+  .tx-ic{width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+  .tx-ic.in{background:#DCFCE7; color:var(--success);}
+  .tx-ic.out{background:#FEE2E2; color:var(--danger);}
+  .tx-body{flex:1; min-width:0;}
+  .tx-title{font-size:13.5px; font-weight:500; color:var(--text-primary);}
+  .tx-date{font-size:11px; color:var(--text-secondary); margin-top:1px;}
+  .tx-amt{font-family:'IBM Plex Mono',monospace; font-size:13.5px; font-weight:700; text-align:right;}
+  .tx-amt.pos{color:var(--success);}
+  .tx-amt.neg{color:var(--danger);}
+  .tx-status{font-size:9.5px; color:var(--text-secondary); text-align:right; margin-top:2px; letter-spacing:.5px;}
+
+  .navbar{
+    position:absolute; bottom:0; left:0; right:0; background:rgba(255,255,255,.85); backdrop-filter:blur(16px);
+    border-top:1px solid var(--border); display:flex; padding:10px 8px 22px;
+  }
+  .nav-i{flex:1; text-align:center; font-size:10px; color:var(--text-secondary); font-weight:500;}
+  .nav-i .dot{width:5px; height:5px; border-radius:50%; margin:0 auto 4px; background:transparent;}
+  .nav-i.active{color:var(--primary);}
+  .nav-i.active .dot{background:var(--primary);}
+  .nav-ic{font-size:18px; display:block; margin-bottom:3px;}
+
+  /* ===== REVIEW ===== */
+  .rv-top{padding:60px 20px 20px; display:flex; align-items:center; gap:14px;}
+  .rv-back{width:34px; height:34px; border-radius:50%; background:var(--surface); border:1px solid var(--border); display:flex; align-items:center; justify-content:center;}
+  .rv-title{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;}
+  .rv-hero{
+    margin:10px 20px 0; padding:36px 20px; border-radius:24px; text-align:center;
+    background:radial-gradient(120% 140% at 50% -10%, rgba(139,92,246,.5), transparent 60%), linear-gradient(160deg,#0B1220,#101a33);
+    position:relative; overflow:hidden;
+  }
+  .rv-hero::after{content:''; position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size:16px 16px;}
+  .rv-icon{
+    width:56px; height:56px; margin:0 auto 16px; border-radius:18px; position:relative; z-index:1;
+    background:linear-gradient(135deg,var(--primary),var(--violet)); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 12px 24px rgba(59,130,246,.4);
+  }
+  .rv-icon span{color:#fff; font-size:22px;}
+  .rv-amt{position:relative; z-index:1; font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:32px; color:#fff;}
+  .rv-to{position:relative; z-index:1; font-size:12px; color:rgba(255,255,255,.55); margin-top:4px; font-family:'IBM Plex Mono',monospace;}
+
+  .rv-details{margin:18px 20px 0; background:var(--surface); border:1px solid var(--border); border-radius:18px; padding:18px 20px;}
+  .rv-row{display:flex; justify-content:space-between; padding:10px 0; font-size:13.5px;}
+  .rv-row + .rv-row{border-top:1px solid var(--border);}
+  .rv-row span:first-child{color:var(--text-secondary);}
+  .rv-row span:last-child{font-weight:600; font-family:'IBM Plex Mono',monospace;}
+
+  .rv-scan{
+    margin:16px 20px 0; padding:14px 16px; border-radius:16px; display:flex; gap:12px; align-items:flex-start;
+    background:linear-gradient(135deg, rgba(59,130,246,.08), rgba(139,92,246,.08)); border:1px solid rgba(59,130,246,.18);
+  }
+  .rv-scan-ic{
+    width:30px; height:30px; border-radius:9px; flex-shrink:0; background:linear-gradient(135deg,var(--primary),var(--violet));
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px;
+  }
+  .rv-scan p{font-size:11.5px; color:var(--text-secondary); line-height:1.5;}
+  .rv-scan p b{color:var(--text-primary);}
+  .scan-bar{height:2px; background:var(--border); border-radius:2px; margin-top:8px; overflow:hidden; position:relative;}
+  .scan-bar::after{
+    content:''; position:absolute; top:0; left:-40%; width:40%; height:100%;
+    background:linear-gradient(90deg,transparent,var(--primary),transparent); animation:scan 1.6s linear infinite;
+  }
+  @keyframes scan{to{left:100%;}}
+
+  .rv-cta{
+    position:absolute; bottom:0; left:0; right:0; padding:16px 20px 30px; background:linear-gradient(0deg, var(--bg) 60%, transparent);
+  }
+  .pay-btn{
+    width:100%; padding:16px; border-radius:14px; border:none; color:#fff; font-weight:700; font-size:15px;
+    background:linear-gradient(135deg,var(--primary),var(--violet)); box-shadow:0 12px 24px rgba(59,130,246,.35);
+    font-family:'Space Grotesk',sans-serif;
+  }
+
+  /* ===== LOGIN ===== */
+  .login-bg{
+    height:100%; position:relative; overflow:hidden;
+    background:radial-gradient(130% 90% at 20% 0%, rgba(139,92,246,.5), transparent 55%),
+               radial-gradient(130% 90% at 100% 30%, rgba(59,130,246,.55), transparent 55%),
+               linear-gradient(180deg,#0B1220 0%, #060910 100%);
+    display:flex; flex-direction:column; align-items:center; padding:100px 28px 0;
+  }
+  .login-bg::after{content:''; position:absolute; inset:0; background-image:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px); background-size:20px 20px;}
+  .logo-mark{
+    width:64px; height:64px; border-radius:20px; position:relative; z-index:1; margin-bottom:18px;
+    background:conic-gradient(from 90deg, #3B82F6, #8B5CF6, #10B981, #3B82F6); display:flex; align-items:center; justify-content:center;
+    animation:spin 8s linear infinite;
+  }
+  .logo-mark::before{content:''; position:absolute; inset:3px; border-radius:17px; background:#0B1220;}
+  .logo-mark span{position:relative; z-index:1; color:#fff; font-size:24px; font-weight:700; font-family:'Space Grotesk',sans-serif;}
+  .brand{position:relative; z-index:1; font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; color:#fff; letter-spacing:2px;}
+  .tagline{position:relative; z-index:1; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:2.5px; color:rgba(255,255,255,.4); margin-top:4px; margin-bottom:44px;}
+
+  .login-card{
+    position:relative; z-index:1; width:100%; background:rgba(255,255,255,.06); backdrop-filter:blur(20px);
+    border:1px solid rgba(255,255,255,.12); border-radius:22px; padding:26px 22px;
+  }
+  .lc-label{font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; color:rgba(255,255,255,.45); text-transform:uppercase; margin-bottom:8px;}
+  .lc-input{
+    width:100%; padding:14px 16px; border-radius:12px; border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.05); color:#fff; font-family:'DM Sans',sans-serif; font-size:14px; margin-bottom:16px;
+  }
+  .lc-input::placeholder{color:rgba(255,255,255,.3);}
+  .lc-btn{
+    width:100%; padding:15px; border-radius:12px; border:none; font-weight:700; font-size:14px;
+    background:linear-gradient(135deg,var(--primary),var(--violet)); color:#fff; font-family:'Space Grotesk',sans-serif;
+    box-shadow:0 12px 28px rgba(139,92,246,.35);
+  }
+  .lc-alt{position:relative; z-index:1; margin-top:22px; font-size:12px; color:rgba(255,255,255,.4); text-align:center;}
+  .lc-alt b{color:#fff; font-weight:500;}
+</style>
+</head>
+<body>
+
+<div class="frame-wrap">
+  <div class="label">Home dashboard</div>
+  <div class="frame"><div class="scroll">
+    <div class="hero">
+      <div class="bell"></div>
+      <div class="greet">Good evening<strong>Test 👋</strong></div>
+    </div>
+    <div class="balance-card">
+      <div class="bc-top">
+        <div>
+          <div class="bc-label">Total balance</div>
+          <div class="bc-amount" id="bal">₹0.00</div>
+          <div class="bc-sub">INR · SafePay Wallet</div>
+        </div>
+        <div class="shield"><span>92</span></div>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="act"><div class="act-ic blue">↗</div><div class="act-t">Send</div></div>
+      <div class="act"><div class="act-ic violet">◈</div><div class="act-t">Scan QR</div></div>
+      <div class="act"><div class="act-ic green">↓</div><div class="act-t">Add money</div></div>
+      <div class="act"><div class="act-ic dark">✦</div><div class="act-t">Copilot</div></div>
+    </div>
+    <div class="sec-h"><h3>Recent activity</h3><a href="#">See all →</a></div>
+    <div class="tx">
+      <div class="tx-ic in">↓</div>
+      <div class="tx-body"><div class="tx-title">Topup transfer</div><div class="tx-date">09 Jul</div></div>
+      <div><div class="tx-amt pos">+₹10.00</div><div class="tx-status">COMPLETED</div></div>
+    </div>
+    <div class="tx">
+      <div class="tx-ic out">↑</div>
+      <div class="tx-body"><div class="tx-title">Withdrawal transfer</div><div class="tx-date">09 Jul</div></div>
+      <div><div class="tx-amt neg">−₹432.30</div><div class="tx-status">COMPLETED</div></div>
+    </div>
+    <div class="tx">
+      <div class="tx-ic out">↑</div>
+      <div class="tx-body"><div class="tx-title">Sent to Ganesh K.</div><div class="tx-date">08 Jul</div></div>
+      <div><div class="tx-amt neg">−₹2,000.00</div><div class="tx-status">COMPLETED</div></div>
+    </div>
+    <div style="height:110px"></div>
+    <div class="navbar">
+      <div class="nav-i active"><span class="nav-ic">⬚</span>Home<span class="dot"></span></div>
+      <div class="nav-i"><span class="nav-ic">↗</span>Send</div>
+      <div class="nav-i"><span class="nav-ic">◈</span>Scan</div>
+      <div class="nav-i"><span class="nav-ic">▭</span>Wallet</div>
+      <div class="nav-i"><span class="nav-ic">◔</span>Profile</div>
+    </div>
+  </div></div>
+</div>
+
+<div class="frame-wrap">
+  <div class="label">Review &amp; confirm</div>
+  <div class="frame"><div class="scroll" style="position:relative; height:100%;">
+    <div class="rv-top"><div class="rv-back">←</div><div class="rv-title">Confirm payment</div></div>
+    <div class="rv-hero">
+      <div class="rv-icon"><span>↗</span></div>
+      <div class="rv-amt">₹2,000.00</div>
+      <div class="rv-to">to 9876543210</div>
+    </div>
+    <div class="rv-details">
+      <div class="rv-row"><span>Recipient</span><span>9876543210</span></div>
+      <div class="rv-row"><span>Amount</span><span>₹2,000.00</span></div>
+      <div class="rv-row"><span>Fee</span><span style="color:var(--success)">Free</span></div>
+    </div>
+    <div class="rv-scan">
+      <div class="rv-scan-ic">✓</div>
+      <div>
+        <p><b>SafePay AI is screening this payment</b> in real time — device, behavior and network signals checked before you tap pay.</p>
+        <div class="scan-bar"></div>
+      </div>
+    </div>
+    <div class="rv-cta"><button class="pay-btn">Pay ₹2,000.00</button></div>
+  </div></div>
+</div>
+
+<div class="frame-wrap">
+  <div class="label">SOC analyst sign-in</div>
+  <div class="frame"><div class="scroll">
+    <div class="login-bg">
+      <div class="logo-mark"><span>S</span></div>
+      <div class="brand">SAFEPAY</div>
+      <div class="tagline">FRAUD INTELLIGENCE PLATFORM</div>
+      <div class="login-card">
+        <div class="lc-label">Email</div>
+        <input class="lc-input" placeholder="test@safepay.dev" readonly>
+        <div class="lc-label">Password</div>
+        <input class="lc-input" type="password" value="••••••••••" readonly>
+        <button class="lc-btn">Sign in</button>
+      </div>
+      <div class="lc-alt">Protected by <b>behavioral biometrics</b></div>
+    </div>
+  </div></div>
+</div>
+
+<script>
+  const el = document.getElementById('bal');
+  const target = 602012.70;
+  let start = null;
+  function fmt(n){ return '₹' + n.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function step(ts){
+    if(!start) start = ts;
+    const p = Math.min((ts - start) / 900, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(target * eased);
+    if(p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+</script>
+
+</body>
+</html>

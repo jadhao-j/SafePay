@@ -1,248 +1,120 @@
 "use client";
 
 /**
- * Transaction History Page — lists all wallet transactions with status badges.
- * Clicking a row navigates to /history/[id] for the full explanation.
+ * Transaction History Page (v2 premium dark)
+ * Filterable list, status badges, tap → /history/[id]
  */
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { fetchTransactions, type WalletTransaction } from "@/lib/fraud-api";
 
-const PAYMENT_ICONS: Record<string, string> = {
-  p2p: "↔",
-  merchant: "🏪",
-  qr: "⬡",
-  upi: "⚡",
-  topup: "↓",
-  withdrawal: "↑",
-  recurring: "🔄",
+const DEBIT = new Set(["p2p","merchant","qr","upi","withdrawal"]);
+const TYPE_ICON: Record<string,string> = { p2p:"↔", merchant:"◈", qr:"⬡", upi:"⚡", topup:"↓", withdrawal:"↑", recurring:"↺" };
+const STATUS: Record<string,{color:string;label:string}> = {
+  completed:{color:"#3DDC97",label:"DONE"}, approved:{color:"#3DDC97",label:"DONE"},
+  challenged:{color:"#FFB84D",label:"VERIFIED"}, blocked:{color:"#FF5C5C",label:"BLOCKED"},
+  failed:{color:"#FF5C5C",label:"FAILED"}, pending:{color:"#6B7180",label:"PENDING"},
+  reversed:{color:"#7C5CFF",label:"REVERSED"},
 };
-
-const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  completed: { bg: "rgba(16,185,129,0.12)", text: "#10B981", label: "Completed" },
-  approved:  { bg: "rgba(16,185,129,0.12)", text: "#10B981", label: "Approved" },
-  challenged:{ bg: "rgba(245,158,11,0.12)", text: "#F59E0B", label: "Challenged" },
-  blocked:   { bg: "rgba(239,68,68,0.12)",  text: "#EF4444", label: "Blocked" },
-  pending:   { bg: "rgba(100,116,139,0.12)","text": "#64748B", label: "Pending" },
-  failed:    { bg: "rgba(239,68,68,0.12)",  text: "#EF4444", label: "Failed" },
-  reversed:  { bg: "rgba(139,92,246,0.12)", text: "#8B5CF6", label: "Reversed" },
-};
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatAmount(amount: string, type: string): string {
-  const num = parseFloat(amount);
-  const isDebit = ["p2p", "merchant", "qr", "upi", "withdrawal"].includes(type);
-  return `${isDebit ? "−" : "+"}₹${num.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-}
+const FILTERS = ["All","Approved","Challenged","Blocked"];
 
 export default function HistoryPage(): JSX.Element {
-  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>("all");
   const router = useRouter();
+  const [txns, setTxns]       = useState<WalletTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter]   = useState("All");
+  const [search, setSearch]   = useState("");
 
-  useEffect(() => {
-    fetchTransactions()
-      .then(setTransactions)
-      .catch(() => setError("Could not load transactions. Please log in."))
-      .finally(() => setLoading(false));
-  }, []);
+  useEffect(() => { fetchTransactions().then(setTxns).catch(()=>[]).finally(()=>setLoading(false)); }, []);
 
-  const filtered =
-    filter === "all"
-      ? transactions
-      : transactions.filter((t) => t.status === filter || t.payment_type === filter);
-
-  const hasFraud = (t: WalletTransaction) =>
-    t.status === "challenged" || t.status === "blocked";
+  const filtered = txns.filter(t => {
+    const matchFilter = filter==="All" || t.status.toLowerCase()===filter.toLowerCase() ||
+      (filter==="Approved" && (t.status==="approved"||t.status==="completed"));
+    const matchSearch = !search || t.payment_type.includes(search.toLowerCase()) ||
+      t.id.includes(search.toLowerCase());
+    return matchFilter && matchSearch;
+  });
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#F7F9FC",
-        padding: "0",
-        fontFamily: "var(--font-dm-sans), sans-serif",
-      }}
-    >
+    <div style={{ minHeight:"100vh", background:"#050608", color:"#F5F6F8", fontFamily:"var(--font-dm-sans,'DM Sans',sans-serif)" }}>
+
       {/* Header */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          borderBottom: "1px solid #E2E8F0",
-          padding: "24px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#0F172A", margin: 0 }}>
-            Transaction History
-          </h1>
-          <p style={{ fontSize: "14px", color: "#64748B", margin: "4px 0 0" }}>
-            {transactions.length} transactions total
-          </p>
-        </div>
-        {/* Filters */}
-        <div style={{ display: "flex", gap: "8px" }}>
-          {["all", "completed", "challenged", "blocked"].map((f) => (
-            <button
-              key={f}
-              id={`filter-${f}`}
-              onClick={() => setFilter(f)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: "999px",
-                fontSize: "13px",
-                fontWeight: 600,
-                border: filter === f ? "none" : "1px solid #E2E8F0",
-                background: filter === f ? "#3B82F6" : "#FFFFFF",
-                color: filter === f ? "#FFFFFF" : "#64748B",
-                cursor: "pointer",
-                textTransform: "capitalize",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
-        </div>
+      <div style={{ padding:"28px 24px 0", display:"flex", alignItems:"center", gap:14 }}>
+        <button onClick={()=>router.push("/home")} aria-label="Back"
+          style={{ width:34, height:34, borderRadius:"50%", background:"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.12)", color:"rgba(255,255,255,.7)", fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>←</button>
+        <h1 style={{ fontSize:20, fontWeight:700, color:"#F5F6F8", margin:0, fontFamily:"var(--font-space-grotesk,'Space Grotesk',sans-serif)" }}>Transaction History</h1>
       </div>
 
-      {/* Body */}
-      <div style={{ maxWidth: "860px", margin: "32px auto", padding: "0 24px" }}>
-        {loading && (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "#64748B" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px", animation: "spin 1s linear infinite" }}>⟳</div>
-            Loading transactions…
-          </div>
-        )}
-
-        {error && (
-          <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid #EF4444", borderRadius: "12px", padding: "20px", color: "#EF4444", textAlign: "center" }}>
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && filtered.length === 0 && (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "#64748B" }}>
-            <div style={{ fontSize: "40px", marginBottom: "12px" }}>📭</div>
-            No transactions found.
-          </div>
-        )}
-
-        {!loading && !error && filtered.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {filtered.map((txn) => {
-              const statusStyle = STATUS_STYLES[txn.status] ?? STATUS_STYLES.pending;
-              const isFraud = hasFraud(txn);
-              const isDebit = ["p2p", "merchant", "qr", "upi", "withdrawal"].includes(txn.payment_type);
-              return (
-                <div
-                  key={txn.id}
-                  id={`txn-${txn.id}`}
-                  onClick={() => router.push(`/history/${txn.id}`)}
-                  style={{
-                    background: "#FFFFFF",
-                    border: isFraud ? `1px solid ${statusStyle.text}40` : "1px solid #E2E8F0",
-                    borderLeft: isFraud ? `4px solid ${statusStyle.text}` : "4px solid transparent",
-                    borderRadius: "12px",
-                    padding: "18px 20px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "16px",
-                    transition: "box-shadow 0.15s ease, transform 0.1s ease",
-                    boxShadow: "0 2px 6px rgba(15,23,42,0.04)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = "0 6px 20px rgba(15,23,42,0.1)";
-                    (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLDivElement).style.boxShadow = "0 2px 6px rgba(15,23,42,0.04)";
-                    (e.currentTarget as HTMLDivElement).style.transform = "translateY(0)";
-                  }}
-                >
-                  {/* Icon */}
-                  <div
-                    style={{
-                      width: "44px",
-                      height: "44px",
-                      borderRadius: "12px",
-                      background: isDebit ? "rgba(239,68,68,0.08)" : "rgba(16,185,129,0.08)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "20px",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {PAYMENT_ICONS[txn.payment_type] ?? "↔"}
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "14px", fontWeight: 600, color: "#0F172A", textTransform: "capitalize" }}>
-                      {txn.payment_type.toUpperCase()} Transfer
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#64748B", fontFamily: "var(--font-ibm-plex-mono)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {txn.id}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#94A3B8", marginTop: "2px" }}>
-                      {formatDate(txn.created_at)}
-                    </div>
-                  </div>
-
-                  {/* Amount + Status */}
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        fontWeight: 700,
-                        fontFamily: "var(--font-ibm-plex-mono)",
-                        color: isDebit ? "#EF4444" : "#10B981",
-                      }}
-                    >
-                      {formatAmount(txn.amount, txn.payment_type)}
-                    </div>
-                    <div
-                      style={{
-                        display: "inline-block",
-                        marginTop: "6px",
-                        padding: "3px 10px",
-                        borderRadius: "999px",
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        letterSpacing: "0.5px",
-                        textTransform: "uppercase",
-                        background: statusStyle.bg,
-                        color: statusStyle.text,
-                      }}
-                    >
-                      {statusStyle.label}
-                    </div>
-                  </div>
-
-                  {/* Chevron */}
-                  <div style={{ color: "#CBD5E1", fontSize: "18px", marginLeft: "4px" }}>›</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Search */}
+      <div style={{ padding:"18px 20px 0" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by type or ID…"
+          style={{ width:"100%", padding:"12px 16px", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:12, color:"#F5F6F8", fontSize:14, outline:"none", boxSizing:"border-box" }}/>
       </div>
-    </main>
+
+      {/* Filter pills */}
+      <div style={{ padding:"14px 20px 0", display:"flex", gap:8, flexWrap:"wrap" }}>
+        {FILTERS.map(f=>(
+          <button key={f} onClick={()=>setFilter(f)}
+            style={{
+              padding:"8px 16px", borderRadius:999, fontSize:12, fontWeight:600, cursor:"pointer",
+              background: filter===f ? "rgba(57,210,255,0.15)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${filter===f ? "#39D2FF" : "rgba(255,255,255,0.1)"}`,
+              color: filter===f ? "#39D2FF" : "rgba(255,255,255,0.5)",
+              transition:"all .15s ease",
+            }}>{f}</button>
+        ))}
+      </div>
+
+      {/* List */}
+      <div style={{ padding:"16px 20px 32px" }}>
+        {loading && [1,2,3,4,5].map(i=>(
+          <div key={i} style={{ height:68, borderRadius:14, background:"rgba(255,255,255,0.04)", marginBottom:8, animation:"sp-shimmer 1.4s ease-in-out infinite" }}/>
+        ))}
+
+        {!loading && filtered.length===0 && (
+          <div style={{ textAlign:"center", padding:"40px 20px" }}>
+            <div style={{ fontSize:28, opacity:0.3, marginBottom:8 }}>◈</div>
+            <p style={{ color:"#6B7180", fontSize:13, margin:0 }}>No transactions found</p>
+          </div>
+        )}
+
+        {!loading && filtered.map(txn => {
+          const debit = DEBIT.has(txn.payment_type);
+          const s = STATUS[txn.status]??{color:"#6B7180",label:txn.status.toUpperCase()};
+          return (
+            <Link key={txn.id} href={`/history/${txn.id}`} id={`txn-hist-${txn.id}`}
+              style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8, background:"rgba(255,255,255,0.04)", borderRadius:14, padding:"14px 16px", border:"1px solid rgba(255,255,255,0.07)", textDecoration:"none", transition:"border-color .15s ease" }}
+              onMouseEnter={e=>(e.currentTarget as HTMLAnchorElement).style.borderColor="rgba(255,255,255,0.15)"}
+              onMouseLeave={e=>(e.currentTarget as HTMLAnchorElement).style.borderColor="rgba(255,255,255,0.07)"}>
+              <div style={{ width:38, height:38, borderRadius:11, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15,
+                background: debit ? "rgba(255,92,92,0.12)" : "rgba(61,220,151,0.12)",
+                color: debit ? "#FF5C5C" : "#3DDC97" }}>
+                {TYPE_ICON[txn.payment_type]??"↔"}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <p style={{ fontSize:13.5, fontWeight:500, color:"#F5F6F8", margin:0, textTransform:"capitalize" }}>{txn.payment_type.replace(/_/g," ")} transfer</p>
+                <p style={{ fontSize:11, color:"#6B7180", margin:"2px 0 0", fontFamily:"var(--font-ibm-plex-mono,monospace)" }}>
+                  {new Date(txn.created_at).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}
+                </p>
+              </div>
+              <div style={{ textAlign:"right", flexShrink:0 }}>
+                <p style={{ fontFamily:"var(--font-ibm-plex-mono,monospace)", fontSize:13.5, fontWeight:700, color: debit?"#FF5C5C":"#3DDC97", margin:0 }}>
+                  {debit?"−":"+"}₹{parseFloat(txn.amount).toLocaleString("en-IN",{minimumFractionDigits:2})}
+                </p>
+                <span style={{ fontSize:9, color:s.color, letterSpacing:"0.5px", fontFamily:"var(--font-ibm-plex-mono,monospace)" }}>{s.label}</span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <style>{`
+        @keyframes sp-shimmer{0%,100%{opacity:1}50%{opacity:0.45}}
+        input::placeholder{color:rgba(255,255,255,0.3)}
+        input:focus{border-color:rgba(57,210,255,0.4)!important}
+      `}</style>
+    </div>
   );
 }
