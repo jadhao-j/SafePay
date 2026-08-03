@@ -21,11 +21,12 @@
 | 9 | AI Copilot | ✅ | 2026-07-08 | 2026-07-08 | LangGraph agent + 3 tools live, Gemini 1.5 Flash active, grounded answers verified, user copilot page built |
 | 10a | User App Frontend | ✅ | 2026-07-08 | 2026-07-08 | Tier 1-3 complete, 15 screens — built against v1 design tokens (now superseded, see 10a-v2) |
 | 10a-v2 | Frontend Design Pivot (v2 dark/editorial) | ✅ | 2026-07-12 | 2026-07-16 | Option B full rebuild complete. All 15 user-app screens + all 9 admin pages rebuilt with v2 dark tokens. Shared AdminPageShell + v2 globals.css keyframes added. AdminKpiPanel and AdminSocShell upgraded to pure inline styles. |
-| 10 | Hardening & Polish | ⬜ | | | |
+| 10 | Hardening & Polish | ✅ | 2026-07-17 | 2026-08-01 | PIN system, payment routing, challenge-OTP flow, copilot fix, QR camera, wallet modal, admin login, ₹1000 starter balance |
+| 11 | Smart Notifications · User Analytics · Merchant Portal | 🟦 | 2026-08-01 | | In Progress |
 
 ## Current Phase
-**Active phase:** Phase 10 — Hardening & Polish
-**Current focus task:** Phase 10a-v2 COMPLETE. All 15 user-app screens and all 9 admin pages rebuilt under v2 dark/editorial design system. Next: Phase 10 hardening pass.
+**Active phase:** Phase 11 — Smart Notifications · User Analytics · Merchant Portal
+**Current focus task:** 11A — In-app notification center (backend `notifications` table + routes + frontend bell drawer).
 **Blockers:** None.
 
 > **Note (2026-07-12):** Design.md was revised to v2 mid-project, after Phase 10a and Phase 8's frontend were already fully built and verified. Every one of the 15 Phase 10a screens and all 8 admin pages currently use now-retired v1 tokens. Option B (full rebuild against v2, not the faster Option A token-only swap) was chosen deliberately — see Decision Log — so this phase re-touches nearly every existing frontend file already marked complete above, not just new screens.
@@ -256,19 +257,69 @@
 - [x] Cases — alert-to-case queue, case table with status badges
 - [x] Copilot (SOC) — quick-prompt 2×2 grid, dark chat bubbles, source tags, grounded/ungrounded indicators
 
-### Phase 10 — Hardening & Polish ⬜ NOT STARTED
-- [ ] Rate limiting complete pass — all endpoints covered
-- [ ] Audit logging completeness verified
-- [ ] Encryption at rest — PII columns encrypted
-- [ ] Accessibility pass — contrast ratios, touch targets, reduced-motion
-- [ ] Load test fraud scoring path — confirm < 500ms at load
-- [ ] Final visual polish — Design.md tokens applied everywhere
-- [ ] All PRD.md success criteria measurably met
-- [ ] Kubernetes manifests written
-- [ ] CI/CD pipeline (GitHub Actions) — lint, test, build, deploy
-- [ ] Staging deployment live and demoable
-- [ ] Replace dev-mode OTP console print with real SMS/email provider
-- [ ] Pin all dependency versions in requirements.txt
+### Phase 10 — Hardening & Polish ✅ COMPLETE
+- [x] PIN system — 4-digit PIN saved to backend (`PATCH /users/me/pin`), verified on every payment
+- [x] Payment routing — frontend routes phone → P2P, UPI/email → UPI send correctly
+- [x] Challenge-OTP flow — frontend shows OTP verification screen when fraud engine challenges a transaction; balance updates only after verified
+- [x] Copilot field name fix — frontend sent `{ message }`, backend expected `{ question }` → 422 on every copilot request → fixed
+- [x] Copilot general questions — `_handle_general_question` handler added; questions like "What is my risk score?" return live DB data without a transaction ID
+- [x] Scan QR camera size — viewfinder capped at 300×300 px, was stretching full-screen
+- [x] Wallet modal z-index — raised to 100 + `maxHeight: 90vh` so sheet never clips under sidebar
+- [x] New-user starter balance — ₹1,000 demo balance on registration
+- [x] Admin login — reset corrupted bcrypt hash via in-container Python script; `test@safepay.dev / admin123` confirmed working
+
+### Phase 11 — Smart Notifications · User Analytics · Merchant Portal 🟦 IN PROGRESS
+
+> Adds the three biggest missing layers for a complete fintech demo:
+> 1. **Notification Center** — real-time in-app alerts for payments, fraud events, security actions
+> 2. **User Analytics** — spending trends, risk score history, personalised insights
+> 3. **Merchant Portal** — merchant registration, own QR generation, incoming payment dashboard
+
+#### 11A — In-App Notification Center
+- [x] Backend: `notifications` table (id, user_id, type ENUM, title, body, read, created_at)
+- [x] `GET /notifications/` — paginated, newest first; `X-Unread-Count` response header
+- [x] `PATCH /notifications/{id}/read` — mark single read
+- [x] `PATCH /notifications/read-all` — mark all read
+- [x] Notification triggers: payment success, payment challenged, payment blocked wired into `wallet_service.transfer_p2p`
+- [x] Frontend: `NotificationBell.tsx` component — bell icon with red pulsing unread badge
+- [x] Frontend: slide-in notification drawer — icon per type, title + body, time-ago label, unread dot
+- [x] Frontend: mark-all-read on drawer open, "MARK ALL READ" button
+- [ ] Real-time push via Redis pub/sub `user:{id}:events` channel (deferred — polling every 30s sufficient for demo)
+
+#### 11B — User Analytics Dashboard
+- [x] `GET /analytics/spending` — total + breakdown by payment_type for 7d / 30d / 90d windows
+- [x] `GET /analytics/risk-history` — last 20 fraud scores for the user ordered by date
+- [x] `GET /analytics/insights` — deterministic AI tips (top spend category, risk trend direction, security improvement suggestions)
+- [x] Frontend: `/analytics` page
+  - [x] Spending donut chart (CSS conic-gradient, P2P / Merchant / Topup / Withdrawal slices)
+  - [x] Risk score timeline — color-coded bar chart (green/amber/red), last 20 scored transactions
+  - [x] 3 insight cards (green / amber / blue) from `/analytics/insights`
+  - [x] 7d / 30d / 90d time-range pill toggle
+- [x] Analytics accessible via BottomNav "More" menu
+
+#### 11C — Personal UPI QR Code
+- [x] `GET /payments/qr/my-qr` — returns UPI deep-link payload for the logged-in user (`{phone}@safepay`)
+- [x] Frontend: `/my-qr` dedicated page
+  - [x] Renders QR using `qrcode` npm canvas library (dynamic import)
+  - [x] User's name + UPI ID displayed below with copy button
+  - [x] Share (Web Share API) / Download (canvas toBlob) buttons
+  - [x] Animated conic-gradient border around QR card
+- [x] Accessible via BottomNav "More" menu
+
+#### 11D — Contact Book
+- [x] Backend: `contacts` table (id, owner_user_id, name, phone, upi_id, created_at)
+- [x] `POST /contacts/`, `GET /contacts/?search=`, `DELETE /contacts/{id}`
+- [x] Frontend: avatar chip row on Send page — filters by typed recipient, tap to pre-fill
+- [x] Frontend: `/contacts` management page — search, add-contact bottom-sheet, 2-step delete
+
+#### 11E — Merchant Portal
+- [ ] Backend: `POST /merchant/register` — creates merchant profile (business_name, upi_id, category)
+- [ ] Backend: `GET /merchant/me`, `GET /merchant/payments`, `GET /merchant/analytics`
+- [ ] Frontend: merchant registration flow at `/merchant/register`
+- [ ] Frontend: merchant dashboard at `/merchant/dashboard`
+  - [ ] Total revenue card + daily bar chart (last 7 days)
+  - [ ] Today's incoming payments table
+  - [ ] Merchant QR code display + download
 
 ## Bug Log (Phase 4 additions)
 

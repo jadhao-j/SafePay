@@ -259,10 +259,147 @@ async def _gemini_answer(question: str, tool_result: dict[str, Any], api_key: st
             max_tokens=400,
         )
         response = await llm.ainvoke([HumanMessage(content=_build_prompt(question, tool_result))])
-        return str(response.content).strip()
+        content = str(response.content).strip() if response.content else ""
+
+        # Gemini sometimes returns empty content (safety filter / empty output error)
+        if not content or "model output must contain" in content.lower():
+            logger.warning("Gemini returned empty/invalid content — using deterministic fallback")
+            return _deterministic_answer(question, tool_result)
+
+        return content
     except Exception as exc:
         logger.warning("Gemini call failed — using deterministic fallback: %s", exc)
         return _deterministic_answer(question, tool_result)
+
+
+# ── General question handler (no transaction_id) ────────────────────────────
+
+async def _handle_general_question(
+    question: str,
+    user_id: UUID,
+    db: AsyncSession,
+    settings: Any,
+) -> dict[str, Any]:
+    """Answer general questions (balance, risk, security) using live user data."""
+    from app.models.identity import User
+    from decimal import Decimal
+
+    q = question.lower()
+
+    try:
+        # Fetch wallet balance
+        wallet_result = await db.execute(select(Wallet).where(Wallet.user_id == user_id))
+        wallet = wallet_result.scalar_one_or_none()
+        balance = float(wallet.balance) if wallet else 0.0
+        currency = wallet.currency if wallet else "INR"
+
+        # Fetch last 5 transactions
+        tx_result = await db.execute(
+            select(Transaction)
+            .where(Transaction.sender_wallet_id == wallet.id if wallet else Transaction.id == None)
+            .order_by(Transaction.created_at.desc())  # type: ignore[attr-defined]
+            .limit(5)
+        )
+        recent_txns = tx_result.scalars().all()
+
+        # Fetch latest fraud score for user
+        latest_score: FraudScore | None = None
+        if recent_txns:
+            for txn in recent_txns:
+                score_result = await db.execute(
+                    select(FraudScore).where(FraudScore.transaction_id == txn.id).limit(1)
+                )
+                score = score_result.scalar_one_or_none()
+                if score:
+                    latest_score = score
+                    break
+
+        # Build grounded context
+        context: dict[str, Any] = {
+            "wallet_balance": f"{balance:.2f} {currency}",
+            "recent_transaction_count": len(recent_txns),
+            "recent_transactions": [
+                {
+                    "id": str(t.id),
+                    "amount": str(t.amount),
+                    "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+                    "type": t.payment_type.value if hasattr(t.payment_type, "value") else str(t.payment_type),
+                }
+                for t in recent_txns
+            ],
+        }
+        if latest_score:
+            context["latest_risk_score"] = float(latest_score.final_risk_score)
+            context["latest_decision"] = (
+                latest_score.decision.value
+                if hasattr(latest_score.decision, "value")
+                else str(latest_score.decision)
+            )
+            context["behavioral_risk"] = float(latest_score.behavioral_deviation_score)
+            context["device_risk"] = float(latest_score.device_risk_score)
+            context["transaction_risk"] = float(latest_score.transaction_deviation_score)
+            context["ml_risk"] = float(latest_score.synthetic_identity_score)
+
+        # Build answer
+        if any(w in q for w in ("balance", "money", "wallet", "how much")):
+            answer = (
+                f"Your SafePay wallet balance is **₹{balance:,.2f}**. "
+                + (f"You have {len(recent_txns)} recent transaction(s)." if recent_txns else "No recent transactions found.")
+            )
+        elif any(w in q for w in ("risk", "score", "fraud", "safe", "security")):
+            if latest_score:
+                risk = float(latest_score.final_risk_score)
+                level = "LOW 🟢" if risk < 0.35 else "MEDIUM 🟡" if risk < 0.65 else "HIGH 🔴"
+                answer = (
+                    f"Your latest transaction risk score is **{risk:.2f}/1.00** ({level}). "
+                    f"Breakdown — Behavioral: {context.get('behavioral_risk', 0):.2f}, "
+                    f"Device: {context.get('device_risk', 0):.2f}, "
+                    f"Transaction: {context.get('transaction_risk', 0):.2f}, "
+                    f"ML model: {context.get('ml_risk', 0):.2f}. "
+                    f"Decision on last payment: **{context.get('latest_decision', 'N/A').upper()}**."
+                )
+            else:
+                answer = (
+                    "No risk score data found yet. Make a transaction first and I'll be able to explain your security profile. "
+                    f"Current balance: ₹{balance:,.2f}."
+                )
+        elif any(w in q for w in ("transaction", "history", "recent", "payment", "sent", "transfer")):
+            if recent_txns:
+                lines = "\n".join(
+                    f"• {t['type'].upper()} ₹{t['amount']} — {t['status'].upper()} (ID: ...{t['id'][-8:]})"
+                    for t in context["recent_transactions"]
+                )
+                answer = f"Your recent transactions:\n{lines}"
+            else:
+                answer = "No recent transactions found in your account."
+        elif settings.gemini_api_key:
+            # Use Gemini for open-ended questions with context
+            answer = await _gemini_answer(question, context, settings.gemini_api_key)
+        else:
+            answer = (
+                f"Hi! Your wallet balance is **₹{balance:,.2f}**. "
+                "I can help you understand your risk scores, transaction history, and security. "
+                "To get details about a specific transaction, mention its ID in your question."
+            )
+
+        return {
+            "answer": answer,
+            "sources": [f"wallet:{wallet.id}" if wallet else ""],
+            "tool_used": "general_profile",
+            "grounded": True,
+        }
+
+    except Exception as exc:
+        logger.warning("General question handler failed: %s", exc)
+        return {
+            "answer": (
+                "I encountered an issue fetching your account data. "
+                "Try asking about a specific transaction: 'Explain transaction <ID>'."
+            ),
+            "sources": [],
+            "tool_used": None,
+            "grounded": False,
+        }
 
 
 # ── Public entry point ───────────────────────────────────────────────────────
@@ -280,18 +417,9 @@ async def answer_question(
     settings = get_settings()
     q = question.lower()
 
-    # No transaction_id → can't ground the answer
+    # No transaction_id → try to answer general questions using user profile data
     if not transaction_id or not transaction_id.strip():
-        return {
-            "answer": (
-                "To give you a grounded answer I need a transaction ID. "
-                "You can find it in your transaction history or in any fraud alert. "
-                "Try: \"Why was transaction <ID> blocked?\""
-            ),
-            "sources": [],
-            "tool_used": None,
-            "grounded": False,
-        }
+        return await _handle_general_question(question, user_id, db, settings)
 
     # Route by question intent
     if any(w in q for w in ("risk", "score", "breakdown", "component", "weight")):

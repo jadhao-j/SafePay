@@ -159,3 +159,23 @@ async def verify_challenge(
 @router.post('/recurring', status_code=status.HTTP_501_NOT_IMPLEMENTED)
 async def create_recurring_payment(payload: RecurringPaymentRequest) -> dict[str, str]:
     raise HTTPException(status_code=501, detail='Recurring payments are planned for Phase 3.')
+
+
+@router.get('/qr/my-qr', status_code=200)
+async def my_qr(
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+):
+    """Return the current user's personal UPI QR payload for receiving money."""
+    from sqlalchemy import select
+    from app.models.identity import User
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    phone = user.phone or str(user_id)[:8]
+    upi_id = f"{phone}@safepay"
+    name = user.name or user.email.split("@")[0]
+    # UPI deep-link payload (standard format)
+    payload = f"upi://pay?pa={upi_id}&pn={name}&cu=INR"
+    return {"upi_id": upi_id, "name": name, "payload": payload}

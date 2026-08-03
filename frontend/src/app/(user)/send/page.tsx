@@ -6,9 +6,16 @@
  * POST /payments/p2p  →  success screen with Send Again + Share Receipt.
  */
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient } from "@/lib/api";
+
+interface SavedContact {
+  id: string;
+  name: string;
+  phone: string | null;
+  upi_id: string | null;
+}
 
 type Step = "form" | "pin" | "success" | "error" | "challenge";
 
@@ -87,6 +94,21 @@ function SendForm(): JSX.Element {
   const [otpCode, setOtpCode]     = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpError, setOtpError]   = useState<string | null>(null);
+  const [contacts, setContacts]   = useState<SavedContact[]>([]);
+
+  // Load contacts on mount
+  useEffect(() => {
+    apiClient.get<{ contacts: SavedContact[] }>("/contacts/")
+      .then((r) => setContacts(r.data.contacts))
+      .catch(() => {});
+  }, []);
+
+  // Filter contacts by current recipient input
+  const matchingContacts = contacts.filter((c) => {
+    if (!recipient) return true;
+    const q = recipient.toLowerCase();
+    return c.name.toLowerCase().includes(q) || (c.phone ?? "").includes(q);
+  }).slice(0, 6);
 
   /* ── Numpad input ──────────────────────────────────────────────────── */
   function handleNumKey(val: string): void {
@@ -504,11 +526,43 @@ function SendForm(): JSX.Element {
               borderRadius: 12, color: "#F5F6F8", fontSize: 14,
               outline: "none", boxSizing: "border-box",
               fontFamily: "var(--font-dm-sans,'DM Sans',sans-serif)",
-              marginBottom: 18, transition: "border-color .15s ease",
+              marginBottom: matchingContacts.length ? 10 : 18, transition: "border-color .15s ease",
             }}
             onFocus={e => (e.currentTarget.style.borderColor = "rgba(57,210,255,0.5)")}
             onBlur={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.14)")}
           />
+
+          {/* Contacts quick-pick */}
+          {matchingContacts.length > 0 && (
+            <div style={{ display: "flex", gap: 8, marginBottom: 14, overflowX: "auto", paddingBottom: 4 }}>
+              {matchingContacts.map((c, i) => {
+                const COLORS = ["#7C5CFF","#39D2FF","#3DDC97","#FFB84D","#FF79C6","#FF5C5C"];
+                const col = COLORS[i % COLORS.length];
+                const initials = c.name.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase();
+                const fillVal = c.phone || c.upi_id || "";
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setRecipient(fillVal)}
+                    title={`${c.name} — ${fillVal}`}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+                      background: "none", border: "none", cursor: "pointer", flexShrink: 0, padding: "4px 2px",
+                    }}
+                  >
+                    <div style={{
+                      width: 44, height: 44, borderRadius: 12,
+                      background: col + "22", border: `1.5px solid ${col}44`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 14, fontWeight: 700, color: col,
+                      transition: "transform .1s ease",
+                    }}>{initials}</div>
+                    <span style={{ fontSize: 10, color: "#9198A8", maxWidth: 52, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name.split(" ")[0]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Amount */}
           <label

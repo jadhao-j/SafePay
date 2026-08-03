@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 type NavItem = {
   label: string;
@@ -9,266 +10,171 @@ type NavItem = {
   icon: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Home", href: "/home", icon: "\u2302" },
-  { label: "Send", href: "/send", icon: "\u2197" },
-  { label: "Scan", href: "/scan", icon: "\u25C8" },
-  { label: "Wallet", href: "/wallet", icon: "\u25AB" },
-  { label: "Profile", href: "/profile", icon: "\u25D4" }
+const PRIMARY_NAV: NavItem[] = [
+  { label: "Home",   href: "/home",   icon: "⊞" },
+  { label: "Send",   href: "/send",   icon: "↗" },
+  { label: "Scan",   href: "/scan",   icon: "◈" },
+  { label: "Wallet", href: "/wallet", icon: "💳" },
 ];
 
-function isActivePath(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+const MORE_ITEMS: NavItem[] = [
+  { label: "Analytics", href: "/analytics", icon: "📊" },
+  { label: "Contacts",  href: "/contacts",  icon: "👥" },
+  { label: "My QR",     href: "/my-qr",     icon: "⬡" },
+  { label: "Merchant",  href: "/merchant",  icon: "🏪" },
+  { label: "Profile",   href: "/profile",   icon: "👤" },
+  { label: "History",   href: "/history",   icon: "🕒" },
+  { label: "Copilot",   href: "/copilot",   icon: "🤖" },
+];
+
+const SIDEBAR_ITEMS: NavItem[] = [...PRIMARY_NAV, ...MORE_ITEMS];
+
+function isActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(href + "/");
 }
 
 export function UserShell({ children }: Readonly<{ children: React.ReactNode }>): JSX.Element {
   const pathname = usePathname();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const inMore = MORE_ITEMS.some((m) => isActive(pathname, m.href));
 
   return (
-    <div className="user-shell">
-      <div className="grain" aria-hidden="true" />
-      <div className="glow user-shell-glow user-shell-glow-a" aria-hidden="true" />
-      <div className="glow user-shell-glow user-shell-glow-b" aria-hidden="true" />
+    <>
+      <style>{`
+        .sp-shell { position:relative; min-height:100vh; background:#050608; color:#F5F6F8; overflow-x:hidden; }
+        .sp-glow { position:fixed; pointer-events:none; width:420px; height:420px; opacity:.42; }
+        .sp-glow-a { top:-120px; left:-120px; background:radial-gradient(circle,rgba(124,92,255,.38) 0%,rgba(124,92,255,.16) 35%,rgba(5,6,8,0) 70%); }
+        .sp-glow-b { right:-160px; bottom:-160px; background:radial-gradient(circle,rgba(57,210,255,.28) 0%,rgba(57,210,255,.12) 35%,rgba(5,6,8,0) 70%); }
 
-      <div className="user-shell__frame">
-        <main className="user-shell__content">{children}</main>
+        /* ── Mobile bottom bar ── */
+        .sp-bottom { display:flex; position:fixed; bottom:0; left:0; right:0; z-index:100; background:rgba(13,15,20,.96); border-top:1px solid rgba(255,255,255,.08); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); padding:6px 4px calc(6px + env(safe-area-inset-bottom)); }
+        .sp-tab { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:54px; color:rgba(255,255,255,.4); text-decoration:none; border-radius:12px; transition:color .15s,background .15s; background:none; border:none; cursor:pointer; font-family:inherit; position:relative; }
+        .sp-tab.active { color:#7C5CFF; background:rgba(124,92,255,.1); }
+        .sp-tab.active::after { content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:20px; height:2px; border-radius:2px 2px 0 0; background:#7C5CFF; }
+        .sp-tab-icon { font-size:18px; line-height:1; }
+        .sp-tab-label { font-size:10px; font-weight:600; letter-spacing:.03em; }
 
-        <nav className="user-shell__nav user-shell__nav--mobile" aria-label="Primary">
-          {NAV_ITEMS.map((item) => {
-            const active = isActivePath(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`user-shell__tab${active ? " is-active" : ""}`}
-                aria-current={active ? "page" : undefined}
-              >
-                <span className="user-shell__icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                <span className="user-shell__label">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        /* ── More popup ── */
+        .sp-more-backdrop { position:fixed; inset:0; z-index:98; background:rgba(0,0,0,.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+        .sp-more-popup { position:fixed; bottom:70px; left:10px; right:10px; z-index:99; background:rgba(13,15,20,.98); border:1px solid rgba(255,255,255,.1); border-radius:20px; padding:16px 10px 12px; box-shadow:0 -16px 48px rgba(0,0,0,.7); display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+        .sp-more-label { grid-column:1/-1; font-size:10px; font-weight:700; color:rgba(255,255,255,.3); letter-spacing:.12em; text-transform:uppercase; margin-bottom:6px; padding-left:4px; }
+        .sp-more-item { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:12px 4px; border-radius:14px; text-decoration:none; gap:5px; border:1px solid transparent; transition:background .15s; }
+        .sp-more-item.active { background:rgba(124,92,255,.15); border-color:rgba(124,92,255,.3); }
+        .sp-more-item-icon { font-size:22px; }
+        .sp-more-item-text { font-size:10px; font-weight:600; color:rgba(255,255,255,.5); text-align:center; }
+        .sp-more-item.active .sp-more-item-text { color:#7C5CFF; }
 
-        <aside className="user-shell__nav user-shell__nav--desktop" aria-label="Primary">
-          <div className="user-shell__brand" aria-hidden="true">
-            <div style={{ position:"relative", width:40, height:40, borderRadius:14, background:"conic-gradient(from 90deg,#7C5CFF,#39D2FF,#3DDC97,#7C5CFF)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-              <div style={{ position:"absolute", inset:2, borderRadius:11, background:"rgba(13,15,20,0.92)" }}/>
-              <span style={{ position:"relative", zIndex:1, fontSize:14, fontWeight:800, color:"#fff", fontFamily:"var(--font-space-grotesk, sans-serif)", letterSpacing:"0.01em" }}>S</span>
-            </div>
-          </div>
-          <div className="user-shell__rail">
-            {NAV_ITEMS.map((item) => {
-              const active = isActivePath(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`user-shell__rail-item${active ? " is-active" : ""}`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <span className="user-shell__rail-accent" aria-hidden="true" />
-                  <span className="user-shell__rail-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span className="user-shell__rail-label">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </aside>
-      </div>
+        /* ── Content ── */
+        .sp-content { position:relative; z-index:1; min-height:100vh; padding-bottom:80px; }
 
-      <style jsx>{`
-        .user-shell {
-          position: relative;
-          min-height: 100vh;
-          background: var(--ink);
-          color: var(--white);
-          overflow-x: hidden;
-        }
+        /* ── Desktop sidebar ── */
+        .sp-sidebar { display:none; }
 
-        .user-shell__frame {
-          position: relative;
-          min-height: 100vh;
-        }
-
-        .user-shell__content {
-          position: relative;
-          z-index: 1;
-          min-height: 100vh;
-          padding-bottom: 92px;
-        }
-
-        .user-shell__nav {
-          position: fixed;
-          left: 0;
-          right: 0;
-          z-index: 20;
-        }
-
-        .user-shell__nav--mobile {
-          display: flex;
-          bottom: 0;
-          gap: 0;
-          padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-          background: rgba(13, 15, 20, 0.88);
-          border-top: 1px solid var(--line);
-          backdrop-filter: blur(22px);
-        }
-
-        .user-shell__tab {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 6px;
-          min-height: 60px;
-          color: var(--dim-2);
-          text-decoration: none;
-          border-radius: 16px;
-          transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
-        }
-
-        .user-shell__tab.is-active {
-          color: var(--acc-2);
-          background: rgba(57, 210, 255, 0.08);
-        }
-
-        .user-shell__icon {
-          font-size: 18px;
-          line-height: 1;
-        }
-
-        .user-shell__label {
-          font-size: 11px;
-          font-weight: 500;
-          letter-spacing: 0.02em;
-        }
-
-        .user-shell__nav--desktop {
-          display: none;
-        }
-
-        .user-shell-glow {
-          width: 420px;
-          height: 420px;
-          opacity: 0.42;
-        }
-
-        .user-shell-glow-a {
-          top: -120px;
-          left: -120px;
-          background: radial-gradient(circle, rgba(124, 92, 255, 0.38) 0%, rgba(124, 92, 255, 0.16) 35%, rgba(5, 6, 8, 0) 70%);
-        }
-
-        .user-shell-glow-b {
-          right: -160px;
-          bottom: -160px;
-          background: radial-gradient(circle, rgba(57, 210, 255, 0.28) 0%, rgba(57, 210, 255, 0.12) 35%, rgba(5, 6, 8, 0) 70%);
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .user-shell__tab,
-          .user-shell__rail-item {
-            transition: none;
+        @media (min-width:1024px) {
+          .sp-content { padding-bottom:0; padding-left:240px; }
+          .sp-bottom { display:none; }
+          .sp-sidebar {
+            display:flex; flex-direction:column; align-items:stretch;
+            position:fixed; inset:0 auto 0 0; width:240px;
+            background:rgba(13,15,20,.92); border-right:1px solid rgba(255,255,255,.08);
+            backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+            padding:18px 0; z-index:50; overflow-y:auto;
           }
-        }
-
-        @media (min-width: 1024px) {
-          .user-shell__content {
-            padding-bottom: 0;
-            padding-left: 240px;
-            min-height: 100vh;
-          }
-
-          .user-shell__nav--mobile {
-            display: none;
-          }
-
-          .user-shell__nav--desktop {
-            display: flex;
-            inset: 0 auto 0 0;
-            width: 240px;
-            flex-direction: column;
-            align-items: stretch;
-            padding: 18px 0;
-            background: rgba(13, 15, 20, 0.9);
-            border-right: 1px solid var(--line);
-            backdrop-filter: blur(22px);
-          }
-
-          .user-shell__brand {
-            display: grid;
-            place-items: center;
-            width: 52px;
-            height: 52px;
-            margin: 0 auto 18px;
-            border-radius: 14px;
-          }
-
-          .user-shell__rail {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding: 0 10px;
-          }
-
-          .user-shell__rail-item {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-height: 52px;
-            padding: 0 12px 0 16px;
-            color: var(--dim-2);
-            text-decoration: none;
-            border-radius: 16px;
-            overflow: hidden;
-            transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
-          }
-
-          .user-shell__rail-item:hover {
-            background: rgba(255, 255, 255, 0.04);
-          }
-
-          .user-shell__rail-item.is-active {
-            background: rgba(57, 210, 255, 0.08);
-            color: var(--acc-2);
-          }
-
-          .user-shell__rail-accent {
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: transparent;
-          }
-
-          .user-shell__rail-item.is-active .user-shell__rail-accent {
-            background: var(--acc);
-          }
-
-          .user-shell__rail-icon {
-            width: 24px;
-            flex: 0 0 24px;
-            font-size: 18px;
-            text-align: center;
-            color: inherit;
-          }
-
-          .user-shell__rail-label {
-            font-size: 13px;
-            font-weight: 500;
-            letter-spacing: 0.01em;
-            white-space: nowrap;
-          }
+          .sp-brand { display:grid; place-items:center; margin:0 auto 20px; }
+          .sp-rail { display:flex; flex-direction:column; gap:3px; padding:0 10px; }
+          .sp-rail-item { position:relative; display:flex; align-items:center; gap:12px; min-height:46px; padding:0 12px 0 16px; color:rgba(255,255,255,.45); text-decoration:none; border-radius:12px; overflow:hidden; transition:color .15s,background .15s; font-size:13px; font-weight:500; letter-spacing:.01em; font-family:inherit; }
+          .sp-rail-item:hover { background:rgba(255,255,255,.05); color:rgba(255,255,255,.8); }
+          .sp-rail-item.active { background:rgba(124,92,255,.12); color:#7C5CFF; }
+          .sp-rail-accent { position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:0 3px 3px 0; background:transparent; }
+          .sp-rail-item.active .sp-rail-accent { background:#7C5CFF; }
+          .sp-rail-icon { width:22px; flex:0 0 22px; font-size:16px; text-align:center; }
+          .sp-section-label { font-size:10px; font-weight:700; color:rgba(255,255,255,.25); letter-spacing:.12em; text-transform:uppercase; padding:14px 22px 6px; }
         }
       `}</style>
-    </div>
+
+      <div className="sp-shell">
+        <div className="sp-glow sp-glow-a" aria-hidden="true" />
+        <div className="sp-glow sp-glow-b" aria-hidden="true" />
+
+        <main className="sp-content">{children}</main>
+
+        {/* ── Desktop sidebar ── */}
+        <aside className="sp-sidebar" aria-label="Primary navigation">
+          <div className="sp-brand">
+            <div style={{ position:"relative", width:40, height:40, borderRadius:14, background:"conic-gradient(from 90deg,#7C5CFF,#39D2FF,#3DDC97,#7C5CFF)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ position:"absolute", inset:2, borderRadius:11, background:"rgba(13,15,20,0.92)" }} />
+              <span style={{ position:"relative", zIndex:1, fontSize:14, fontWeight:800, color:"#fff", fontFamily:"var(--font-space-grotesk,sans-serif)", letterSpacing:"0.01em" }}>S</span>
+            </div>
+          </div>
+          <div className="sp-rail">
+            <div className="sp-section-label">Main</div>
+            {PRIMARY_NAV.map((item) => (
+              <Link key={item.href} href={item.href} className={`sp-rail-item${isActive(pathname, item.href) ? " active" : ""}`}>
+                <span className="sp-rail-accent" aria-hidden="true" />
+                <span className="sp-rail-icon">{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+            <div className="sp-section-label">More</div>
+            {MORE_ITEMS.map((item) => (
+              <Link key={item.href} href={item.href} className={`sp-rail-item${isActive(pathname, item.href) ? " active" : ""}`}>
+                <span className="sp-rail-accent" aria-hidden="true" />
+                <span className="sp-rail-icon">{item.icon}</span>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </aside>
+
+        {/* ── Mobile bottom nav ── */}
+        <nav className="sp-bottom" aria-label="Primary navigation">
+
+          {/* More popup */}
+          {moreOpen && (
+            <>
+              <div className="sp-more-backdrop" onClick={() => setMoreOpen(false)} />
+              <div className="sp-more-popup">
+                <div className="sp-more-label">More</div>
+                {MORE_ITEMS.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`sp-more-item${isActive(pathname, item.href) ? " active" : ""}`}
+                    onClick={() => setMoreOpen(false)}
+                    id={`nav-more-${item.label.toLowerCase().replace(/\s/g, "-")}`}
+                  >
+                    <span className="sp-more-item-icon">{item.icon}</span>
+                    <span className="sp-more-item-text">{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Primary tabs */}
+          {PRIMARY_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              id={`nav-${item.label.toLowerCase()}`}
+              className={`sp-tab${isActive(pathname, item.href) ? " active" : ""}`}
+            >
+              <span className="sp-tab-icon">{item.icon}</span>
+              <span className="sp-tab-label">{item.label}</span>
+            </Link>
+          ))}
+
+          {/* More button */}
+          <button
+            id="nav-more"
+            className={`sp-tab${inMore || moreOpen ? " active" : ""}`}
+            onClick={() => setMoreOpen((o) => !o)}
+          >
+            <span className="sp-tab-icon" style={{ fontSize:22, fontWeight:800, lineHeight:1 }}>⋯</span>
+            <span className="sp-tab-label">More</span>
+          </button>
+        </nav>
+      </div>
+    </>
   );
 }

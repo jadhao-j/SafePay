@@ -293,14 +293,17 @@ async def _handle_general_question(
         balance = float(wallet.balance) if wallet else 0.0
         currency = wallet.currency if wallet else "INR"
 
-        # Fetch last 5 transactions
-        tx_result = await db.execute(
-            select(Transaction)
-            .where(Transaction.sender_wallet_id == wallet.id if wallet else Transaction.id == None)
-            .order_by(Transaction.created_at.desc())  # type: ignore[attr-defined]
-            .limit(5)
-        )
-        recent_txns = tx_result.scalars().all()
+        # Fetch last 5 transactions for this user's wallet
+        if wallet:
+            tx_result = await db.execute(
+                select(Transaction)
+                .where(Transaction.sender_wallet_id == wallet.id)
+                .order_by(Transaction.created_at.desc())  # type: ignore[attr-defined]
+                .limit(5)
+            )
+            recent_txns = list(tx_result.scalars().all())
+        else:
+            recent_txns = []
 
         # Fetch latest fraud score for user
         latest_score: FraudScore | None = None
@@ -340,46 +343,47 @@ async def _handle_general_question(
             context["transaction_risk"] = float(latest_score.transaction_deviation_score)
             context["ml_risk"] = float(latest_score.synthetic_identity_score)
 
-        # Build answer
+        # Build answer — fully deterministic, no LLM needed for general questions
         if any(w in q for w in ("balance", "money", "wallet", "how much")):
             answer = (
-                f"Your SafePay wallet balance is **₹{balance:,.2f}**. "
-                + (f"You have {len(recent_txns)} recent transaction(s)." if recent_txns else "No recent transactions found.")
+                f"Your SafePay wallet balance is **₹{balance:,.2f}** {currency}. "
+                + (f"You have {len(recent_txns)} recent transaction(s) on record." if recent_txns else "No recent transactions found.")
             )
         elif any(w in q for w in ("risk", "score", "fraud", "safe", "security")):
             if latest_score:
                 risk = float(latest_score.final_risk_score)
                 level = "LOW 🟢" if risk < 0.35 else "MEDIUM 🟡" if risk < 0.65 else "HIGH 🔴"
                 answer = (
-                    f"Your latest transaction risk score is **{risk:.2f}/1.00** ({level}). "
-                    f"Breakdown — Behavioral: {context.get('behavioral_risk', 0):.2f}, "
-                    f"Device: {context.get('device_risk', 0):.2f}, "
-                    f"Transaction: {context.get('transaction_risk', 0):.2f}, "
-                    f"ML model: {context.get('ml_risk', 0):.2f}. "
+                    f"Your latest transaction risk score is **{risk:.2f}/1.00** — {level}.\n\n"
+                    f"**Score breakdown:**\n"
+                    f"• Behavioral signals: {context.get('behavioral_risk', 0):.2f} (35% weight)\n"
+                    f"• Transaction amount: {context.get('transaction_risk', 0):.2f} (30% weight)\n"
+                    f"• Device trust: {context.get('device_risk', 0):.2f} (20% weight)\n"
+                    f"• ML model: {context.get('ml_risk', 0):.2f} (15% weight)\n\n"
                     f"Decision on last payment: **{context.get('latest_decision', 'N/A').upper()}**."
                 )
             else:
                 answer = (
-                    "No risk score data found yet. Make a transaction first and I'll be able to explain your security profile. "
-                    f"Current balance: ₹{balance:,.2f}."
+                    "No fraud risk score found yet — you haven't made any transactions.\n\n"
+                    f"Current wallet balance: **₹{balance:,.2f}**. "
+                    "Make a payment and I'll show you a full risk score breakdown."
                 )
         elif any(w in q for w in ("transaction", "history", "recent", "payment", "sent", "transfer")):
             if recent_txns:
                 lines = "\n".join(
-                    f"• {t['type'].upper()} ₹{t['amount']} — {t['status'].upper()} (ID: ...{t['id'][-8:]})"
+                    f"• {t['type'].upper()} ₹{t['amount']} — {t['status'].upper()} (ref: ...{t['id'][-8:]})"
                     for t in context["recent_transactions"]
                 )
-                answer = f"Your recent transactions:\n{lines}"
+                answer = f"Your {len(recent_txns)} most recent transactions:\n{lines}"
             else:
                 answer = "No recent transactions found in your account."
-        elif settings.gemini_api_key:
-            # Use Gemini for open-ended questions with context
-            answer = await _gemini_answer(question, context, settings.gemini_api_key)
         else:
             answer = (
-                f"Hi! Your wallet balance is **₹{balance:,.2f}**. "
-                "I can help you understand your risk scores, transaction history, and security. "
-                "To get details about a specific transaction, mention its ID in your question."
+                f"Hi! I'm SafePay Copilot. Here's a quick summary of your account:\n\n"
+                f"💰 **Wallet balance:** ₹{balance:,.2f} {currency}\n"
+                f"📊 **Recent transactions:** {len(recent_txns)}\n"
+                + (f"🛡️ **Latest risk score:** {context.get('latest_risk_score', 'N/A')}" if latest_score else "🛡️ **Risk score:** No transactions yet\n")
+                + "\n\nYou can ask me:\n• 'What is my risk score?'\n• 'Show my recent transactions'\n• 'Explain transaction <ID>'"
             )
 
         return {

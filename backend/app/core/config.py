@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     jwt_secret: str = Field(default="")
     jwt_refresh_secret: str = Field(default="")
     jwt_algorithm: str = Field(default="HS256")
-    access_token_expires_minutes: int = Field(default=15)
-    refresh_token_expires_days: int = Field(default=7)
+    access_token_expires_minutes: int = Field(default=1440)   # 1 day
+    refresh_token_expires_days: int = Field(default=30)        # 30 days
+
     device_fingerprint_salt: str = Field(default="")
     log_level: str = Field(default="info")
     blockchain_rpc_url: str = Field(default="http://hardhat-node:8545")

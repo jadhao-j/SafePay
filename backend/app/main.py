@@ -7,7 +7,10 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.routes import admin, auth, behavior, blockchain, copilot, fraud, payments, users, wallet, ws
+from app.api.v1.routes import (
+    admin, analytics, auth, behavior, blockchain, contacts,
+    copilot, fraud, merchant, notifications, payments, users, wallet, ws,
+)
 from app.core.config import get_settings
 from app.core.middleware import DeviceFingerprintMiddleware, RBACMiddleware, RateLimitMiddleware
 
@@ -55,6 +58,10 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(copilot.router, prefix="/api/v1")
     app.include_router(ws.router, prefix="/api/v1")
+    app.include_router(notifications.router, prefix="/api/v1")
+    app.include_router(analytics.router, prefix="/api/v1")
+    app.include_router(contacts.router, prefix="/api/v1")
+    app.include_router(merchant.router, prefix="/api/v1")
 
     @app.get("/health")
     async def health() -> dict:

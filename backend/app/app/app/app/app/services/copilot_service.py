@@ -259,7 +259,14 @@ async def _gemini_answer(question: str, tool_result: dict[str, Any], api_key: st
             max_tokens=400,
         )
         response = await llm.ainvoke([HumanMessage(content=_build_prompt(question, tool_result))])
-        return str(response.content).strip()
+        content = str(response.content).strip() if response.content else ""
+
+        # Gemini sometimes returns empty content (safety filter / empty output error)
+        if not content or "model output must contain" in content.lower():
+            logger.warning("Gemini returned empty/invalid content — using deterministic fallback")
+            return _deterministic_answer(question, tool_result)
+
+        return content
     except Exception as exc:
         logger.warning("Gemini call failed — using deterministic fallback: %s", exc)
         return _deterministic_answer(question, tool_result)
@@ -286,14 +293,17 @@ async def _handle_general_question(
         balance = float(wallet.balance) if wallet else 0.0
         currency = wallet.currency if wallet else "INR"
 
-        # Fetch last 5 transactions
-        tx_result = await db.execute(
-            select(Transaction)
-            .where(Transaction.sender_wallet_id == wallet.id if wallet else Transaction.id == None)
-            .order_by(Transaction.created_at.desc())  # type: ignore[attr-defined]
-            .limit(5)
-        )
-        recent_txns = tx_result.scalars().all()
+        # Fetch last 5 transactions for this user's wallet
+        if wallet:
+            tx_result = await db.execute(
+                select(Transaction)
+                .where(Transaction.sender_wallet_id == wallet.id)
+                .order_by(Transaction.created_at.desc())  # type: ignore[attr-defined]
+                .limit(5)
+            )
+            recent_txns = list(tx_result.scalars().all())
+        else:
+            recent_txns = []
 
         # Fetch latest fraud score for user
         latest_score: FraudScore | None = None

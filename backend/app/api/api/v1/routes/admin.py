@@ -1,0 +1,427 @@
+"""Admin and SOC router stubs."""
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_session
+from app.core.deps import get_current_user_id, require_role
+from app.models.enums import FraudDecision, UserStatus
+from app.models.federated import FLTrainingRound
+from app.models.fraud import FraudCase, FraudScore
+from app.models.identity import BehavioralEvent, Device, User
+from app.models.payments import Merchant, Transaction
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+class FLRoundPayload(BaseModel):
+    """Payload for logging a completed federated learning round."""
+    round_number: int
+    global_model_version: str
+    participating_clients: list[str]
+    aggregate_metrics: dict[str, Any]
+
+
+@router.post("/fl-round", status_code=status.HTTP_201_CREATED)
+async def log_fl_round(
+    payload: FLRoundPayload,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Log a completed federated learning round. Called by the Flower coordinator."""
+    round_row = FLTrainingRound(
+        round_number=payload.round_number,
+        global_model_version=payload.global_model_version,
+        participating_clients=payload.participating_clients,
+        aggregate_metrics=payload.aggregate_metrics,
+        completed_at=datetime.now(timezone.utc),
+    )
+    db.add(round_row)
+    await db.commit()
+    await db.refresh(round_row)
+    return {
+        "id": str(round_row.id),
+        "round_number": round_row.round_number,
+        "global_model_version": round_row.global_model_version,
+        "completed_at": round_row.completed_at.isoformat(),
+        "status": "logged",
+    }
+
+
+@router.get("/fl-rounds")
+async def list_fl_rounds(
+    db: AsyncSession = Depends(get_session),
+    user_id=Depends(get_current_user_id),
+) -> list[dict]:
+    """List all federated learning rounds, newest first."""
+    result = await db.execute(
+        select(FLTrainingRound).order_by(FLTrainingRound.round_number.desc()).limit(20)
+    )
+    rounds = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "round_number": r.round_number,
+            "global_model_version": r.global_model_version,
+            "participating_clients": r.participating_clients,
+            "aggregate_metrics": r.aggregate_metrics,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+        }
+        for r in rounds
+    ]
+
+
+def _parse_window(window: str) -> timedelta:
+    """Parse '24h' / '7d' style window strings. Falls back to 24h on anything malformed."""
+    try:
+        value, unit = int(window[:-1]), window[-1]
+        if unit == "h":
+            return timedelta(hours=value)
+        if unit == "d":
+            return timedelta(days=value)
+    except (ValueError, IndexError):
+        pass
+    return timedelta(hours=24)
+
+
+@router.get("/dashboard/overview")
+async def dashboard_overview(
+    window: str = "24h",
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst", "compliance_officer")),
+) -> dict[str, Any]:
+    """KPI summary for the SOC dashboard: totals, decision breakdown, fraud rate, avg risk score."""
+    since = datetime.now(timezone.utc) - _parse_window(window)
+
+    total_result = await db.execute(
+        select(func.count(Transaction.id)).where(Transaction.created_at >= since)
+    )
+    total_transactions = total_result.scalar_one()
+
+    decision_result = await db.execute(
+        select(FraudScore.decision, func.count(FraudScore.id))
+        .join(Transaction, Transaction.id == FraudScore.transaction_id)
+        .where(Transaction.created_at >= since)
+        .group_by(FraudScore.decision)
+    )
+    decision_counts = {row[0].value: row[1] for row in decision_result.all()}
+
+    approved_count = decision_counts.get(FraudDecision.APPROVE.value, 0)
+    challenged_count = decision_counts.get(FraudDecision.CHALLENGE.value, 0)
+    blocked_count = decision_counts.get(FraudDecision.BLOCK.value, 0)
+    scored_total = approved_count + challenged_count + blocked_count
+
+    avg_result = await db.execute(
+        select(func.avg(FraudScore.final_risk_score))
+        .join(Transaction, Transaction.id == FraudScore.transaction_id)
+        .where(Transaction.created_at >= since)
+    )
+    avg_risk_score = avg_result.scalar_one()
+
+    fraud_rate = round((challenged_count + blocked_count) / scored_total, 4) if scored_total else 0.0
+
+    return {
+        "window": window,
+        "since": since.isoformat(),
+        "total_transactions": total_transactions,
+        "scored_transactions": scored_total,
+        "approved_count": approved_count,
+        "challenged_count": challenged_count,
+        "blocked_count": blocked_count,
+        "fraud_rate": fraud_rate,
+        "avg_risk_score": float(avg_risk_score) if avg_risk_score is not None else 0.0,
+    }
+
+@router.get("/dashboard/heatmap")
+async def dashboard_heatmap(
+    window: str = "24h",
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst", "compliance_officer")),
+) -> dict:
+    """Fraud distribution by payment_type and decision for heatmap visualization."""
+    since = datetime.now(timezone.utc) - _parse_window(window)
+    result = await db.execute(
+        select(
+            Transaction.payment_type,
+            FraudScore.decision,
+            func.count(FraudScore.id).label("count"),
+            func.avg(FraudScore.final_risk_score).label("avg_risk"),
+        )
+        .join(FraudScore, FraudScore.transaction_id == Transaction.id)
+        .where(Transaction.created_at >= since)
+        .group_by(Transaction.payment_type, FraudScore.decision)
+    )
+    rows = result.all()
+    heatmap = {}
+    for row in rows:
+        ptype = row.payment_type.value if hasattr(row.payment_type, "value") else str(row.payment_type)
+        decision = row.decision.value if hasattr(row.decision, "value") else str(row.decision)
+        if ptype not in heatmap:
+            heatmap[ptype] = {}
+        heatmap[ptype][decision] = {
+            "count": row.count,
+            "avg_risk": round(float(row.avg_risk), 4) if row.avg_risk else 0.0,
+        }
+    return {"window": window, "since": since.isoformat(), "heatmap": heatmap}
+
+@router.get("/dashboard/risk-distribution")
+async def dashboard_risk_distribution(
+    window: str = "24h",
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst", "compliance_officer")),
+) -> dict:
+    """Histogram of final_risk_score in fixed 0.1-wide buckets, for chart visualization."""
+    since = datetime.now(timezone.utc) - _parse_window(window)
+    result = await db.execute(
+        select(FraudScore.final_risk_score)
+        .join(Transaction, Transaction.id == FraudScore.transaction_id)
+        .where(Transaction.created_at >= since)
+    )
+    scores = [float(row[0]) for row in result.all()]
+
+    bucket_labels = [f"{round(i * 0.1, 1)}-{round((i + 1) * 0.1, 1)}" for i in range(10)]
+    buckets = {label: 0 for label in bucket_labels}
+    for score in scores:
+        idx = min(int(score * 10), 9)  # clamp 1.0 into the last bucket
+        buckets[bucket_labels[idx]] += 1
+
+    return {
+        "window": window,
+        "since": since.isoformat(),
+        "total_scored": len(scores),
+        "buckets": buckets,
+    }
+
+    
+@router.get("/devices")
+async def admin_devices(
+    limit: int = 50,
+    untrusted_only: bool = False,
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst")),
+) -> list[dict]:
+    """Device intelligence — list devices ordered by risk (lowest trust first)."""
+    query = select(Device).order_by(Device.trust_score.asc()).limit(limit)
+    if untrusted_only:
+        query = select(Device).where(Device.is_trusted == False).order_by(Device.trust_score.asc()).limit(limit)
+    result = await db.execute(query)
+    devices = result.scalars().all()
+    return [
+        {
+            "id": str(d.id),
+            "user_id": str(d.user_id),
+            "device_name": d.device_name,
+            "os_signature": d.os_signature,
+            "ip_address": str(d.ip_address) if d.ip_address else None,
+            "is_trusted": d.is_trusted,
+            "trust_score": float(d.trust_score),
+            "last_active_at": d.last_active_at.isoformat() if d.last_active_at else None,
+        }
+        for d in devices
+    ]
+
+
+@router.get("/merchants")
+async def admin_merchants(
+    limit: int = 50,
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst")),
+) -> list[dict]:
+    """Merchant list ordered by risk rating descending."""
+    result = await db.execute(
+        select(Merchant).order_by(Merchant.risk_rating.desc()).limit(limit)
+    )
+    merchants = result.scalars().all()
+    return [
+        {
+            "id": str(m.id),
+            "business_name": m.business_name,
+            "upi_id": m.upi_id,
+            "category": m.category,
+            "risk_rating": float(m.risk_rating),
+        }
+        for m in merchants
+    ]
+
+
+@router.get("/investigations")
+async def admin_investigations(
+    status_filter: str | None = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_session),
+    role: str = Depends(require_role("admin", "fraud_analyst", "compliance_officer")),
+) -> list[dict]:
+    """Fraud investigation cases, newest first. Optional status filter."""
+    query = select(FraudCase).order_by(FraudCase.created_at.desc()).limit(limit)
+    if status_filter:
+        from app.models.enums import FraudCaseStatus
+        try:
+            query = select(FraudCase).where(
+                FraudCase.status == FraudCaseStatus(status_filter)
+            ).order_by(FraudCase.created_at.desc()).limit(limit)
+        except ValueError:
+            pass
+    result = await db.execute(query)
+    cases = result.scalars().all()
+    return [
+        {
+            "case_id": str(c.id),
+            "transaction_id": str(c.transaction_id),
+            "status": c.status.value,
+            "notes": c.notes,
+            "assigned_analyst_id": str(c.assigned_analyst_id) if c.assigned_analyst_id else None,
+            "created_at": c.created_at.isoformat(),
+        }
+        for c in cases
+    ]
+
+
+# ── User Management ──────────────────────────────────────────────────────────
+
+class UserStatusUpdate(BaseModel):
+    """Payload for updating a user's account status."""
+    status: str  # active | suspended | frozen
+
+
+@router.get("/users")
+async def admin_list_users(
+    limit: int = 100,
+    role_filter: str | None = None,
+    db: AsyncSession = Depends(get_session),
+    _role: str = Depends(require_role("admin", "compliance_officer")),
+) -> list[dict]:
+    """List all users ordered by creation date. Admin/compliance_officer only."""
+    query = select(User).order_by(User.created_at.desc()).limit(limit)
+    if role_filter:
+        from app.models.enums import UserRole
+        try:
+            query = (
+                select(User)
+                .where(User.role == UserRole(role_filter))
+                .order_by(User.created_at.desc())
+                .limit(limit)
+            )
+        except ValueError:
+            pass
+    result = await db.execute(query)
+    users = result.scalars().all()
+    return [
+        {
+            "id": str(u.id),
+            "name": u.name,
+            "email": u.email,
+            "phone": u.phone,
+            "role": u.role.value,
+            "status": u.status.value,
+            "security_score": int(u.security_score) if u.security_score is not None else 0,
+            "mfa_enabled": u.mfa_enabled,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
+@router.patch("/users/{user_id}/status")
+async def admin_update_user_status(
+    user_id: str,
+    payload: UserStatusUpdate,
+    db: AsyncSession = Depends(get_session),
+    _role: str = Depends(require_role("admin")),
+) -> dict:
+    """Suspend or freeze a user account. Admin only."""
+    allowed = {s.value for s in UserStatus} - {"pending"}  # can't set pending via API
+    if payload.status not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"status must be one of: {', '.join(sorted(allowed))}",
+        )
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.status = UserStatus(payload.status)
+    await db.commit()
+    await db.refresh(user)
+    return {
+        "id": str(user.id),
+        "name": user.name,
+        "email": user.email,
+        "phone": user.phone,
+        "role": user.role.value,
+        "status": user.status.value,
+        "security_score": int(user.security_score) if user.security_score is not None else 0,
+        "mfa_enabled": user.mfa_enabled,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
+# ── Behavioral Analytics ─────────────────────────────────────────────────────
+
+@router.get("/dashboard/behavioral-analytics")
+async def dashboard_behavioral_analytics(
+    db: AsyncSession = Depends(get_session),
+    _role: str = Depends(require_role("admin", "fraud_analyst", "compliance_officer")),
+) -> dict:
+    """Aggregate behavioral analytics: trust score distribution, event breakdown, high-risk users."""
+    # Per-user average trust scores
+    user_scores_result = await db.execute(
+        select(
+            BehavioralEvent.user_id,
+            func.avg(BehavioralEvent.trust_score_at_event).label("avg_trust"),
+            func.count(BehavioralEvent.id).label("event_count"),
+        ).group_by(BehavioralEvent.user_id)
+    )
+    user_rows = user_scores_result.all()
+
+    total_users = len(user_rows)
+    overall_avg = (
+        sum(float(r.avg_trust) for r in user_rows) / total_users if total_users else 0.0
+    )
+
+    # Trust score buckets: 0-25, 25-50, 50-75, 75-100
+    bucket_labels = ["0-25", "25-50", "50-75", "75-100"]
+    trust_buckets: dict[str, int] = {label: 0 for label in bucket_labels}
+    for row in user_rows:
+        score = float(row.avg_trust)
+        if score < 25:
+            trust_buckets["0-25"] += 1
+        elif score < 50:
+            trust_buckets["25-50"] += 1
+        elif score < 75:
+            trust_buckets["50-75"] += 1
+        else:
+            trust_buckets["75-100"] += 1
+
+    # Event type breakdown
+    event_type_result = await db.execute(
+        select(
+            BehavioralEvent.event_type,
+            func.count(BehavioralEvent.id).label("cnt"),
+        ).group_by(BehavioralEvent.event_type)
+    )
+    event_breakdown: dict[str, int] = {
+        (row.event_type.value if hasattr(row.event_type, "value") else str(row.event_type)): row.cnt
+        for row in event_type_result.all()
+    }
+
+    # High-risk users: avg trust < 40 and at least 5 events
+    high_risk = [
+        {
+            "user_id": str(r.user_id),
+            "avg_trust_score": round(float(r.avg_trust), 2),
+            "event_count": int(r.event_count),
+        }
+        for r in sorted(user_rows, key=lambda x: float(x.avg_trust))
+        if float(r.avg_trust) < 40 and int(r.event_count) >= 5
+    ][:10]
+
+    return {
+        "total_users_with_events": total_users,
+        "avg_trust_score": round(overall_avg, 2),
+        "trust_score_buckets": trust_buckets,
+        "event_type_breakdown": event_breakdown,
+        "high_risk_users": high_risk,
+    }

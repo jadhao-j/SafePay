@@ -12,6 +12,22 @@ from app.models.payments import Merchant, Transaction, Wallet
 from app.services import fraud_service
 from app.services.behavior_service import get_trust_score as _get_trust_score
 from app.core.security import verify_pin
+try:
+    from app.services.notification_service import notify
+    from app.models.notification import NotificationType
+    _NOTIFY_AVAILABLE = True
+except Exception:
+    _NOTIFY_AVAILABLE = False
+
+
+async def _notify(db, user_id, type_val, title, body, ref_id=None):
+    """Safe notification wrapper — never raises."""
+    if not _NOTIFY_AVAILABLE:
+        return
+    try:
+        await notify(db, user_id, type_val, title, body, ref_id)
+    except Exception:
+        pass
 
 async def _write_audit_log(db: AsyncSession, actor_user_id: UUID, action: str, metadata: dict) -> None:
     """Append an audit log entry."""
@@ -207,7 +223,14 @@ async def transfer_p2p(
         await db.commit()
         await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
         risk_score_val = fraud_result["final_risk_score"]
+        await _notify(
+            db, sender_user_id, NotificationType.PAYMENT_BLOCKED,
+            "Payment Blocked 🚫",
+            f"Your payment of ₹{float(amount):,.2f} was blocked. Risk score: {risk_score_val:.2f}.",
+            ref_id=str(txn.id),
+        )
         raise ValueError(f"Transaction blocked. Risk score: {risk_score_val:.2f}")
+
 
     if fraud_result["decision"] == "challenge":
         txn.status = TransactionStatus.CHALLENGED
@@ -221,6 +244,12 @@ async def transfer_p2p(
         )
         await db.commit()
         await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
+        await _notify(
+            db, sender_user_id, NotificationType.PAYMENT_CHALLENGED,
+            "Verification Required 🔐",
+            f"Your payment of ₹{float(amount):,.2f} needs OTP verification.",
+            ref_id=str(txn.id),
+        )
         return txn
 
     sender_wallet.balance = sender_wallet.balance - amount
@@ -236,7 +265,14 @@ async def transfer_p2p(
     )
     await db.commit()
     await publish_transaction_event(txn, fraud_result["decision"], fraud_result["final_risk_score"])
+    await _notify(
+        db, sender_user_id, NotificationType.PAYMENT_SUCCESS,
+        "Payment Sent ✅",
+        f"₹{float(amount):,.2f} sent successfully. Ref: ...{str(txn.id)[-8:]}.",
+        ref_id=str(txn.id),
+    )
     return txn
+
 
 
 async def list_transactions(db: AsyncSession, user_id: UUID, limit: int = 50) -> list[Transaction]:

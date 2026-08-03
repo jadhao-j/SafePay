@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api";
 import { fetchTransactions, fetchAlerts, type WalletTransaction, type FraudAlert } from "@/lib/fraud-api";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface BalanceData { balance: string; currency: string; }
 interface SecurityData { security_score: number; behavioral_trust_score: number; baseline_established: boolean; }
@@ -179,27 +180,10 @@ export default function HomePage(): JSX.Element {
           </h1>
         </div>
 
-        {/* Bell button */}
-        <Link
-          href="/history"
-          aria-label={`${unreadCount} unread alerts`}
-          style={{
-            position: "absolute", top: "52px", right: "24px", zIndex: 1,
-            width: "38px", height: "38px", borderRadius: "50%",
-            background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            backdropFilter: "blur(6px)", textDecoration: "none", fontSize: "16px",
-          }}
-        >
-          🔔
-          {unreadCount > 0 && (
-            <span style={{
-              position: "absolute", top: "6px", right: "7px",
-              width: "7px", height: "7px", borderRadius: "50%",
-              background: "var(--danger)",
-            }} />
-          )}
-        </Link>
+        {/* Notification Bell */}
+        <div style={{ position: "absolute", top: "52px", right: "24px", zIndex: 10 }}>
+          <NotificationBell />
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
