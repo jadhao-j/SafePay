@@ -1,4 +1,4 @@
-﻿fastapi>=0.115.0
+fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 pandas
 numpy
@@ -6,5 +6,6 @@ scikit-learn
 xgboost
 joblib
 shap
+matplotlib
 flwr>=1.0.0
 httpx
