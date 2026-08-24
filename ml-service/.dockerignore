@@ -1,0 +1,14 @@
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.log
+.DS_Store
+.vscode
+.idea
+data/
+tests/
+*.ipynb
+app/fl/datasets/*.csv
+app/fl/datasets/bank_*.csv
