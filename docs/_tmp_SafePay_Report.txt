@@ -1,0 +1,509 @@
+PRMITR
+Prof. Ram Meghe Institute of Technology & Research
+Badnera, Amravati — Department of Information Technology
+PROJECT REPORT
+SafePay
+AI-Powered Secure Payment Platform with Fraud Detection,
+Biometric Authentication & Blockchain Intelligence
+Submitted By
+Jay Jadhav (Roll No. — IT)  ·  Ganesh (ML)  ·  Mayur (Blockchain)
+Project Guide
+Prof. Pravin Nerkar
+Department
+Information Technology
+Academic Year
+2025 – 2026
+Degree
+B.Tech Information Technology (Final Year)
+Abstract
+SafePay is an AI-powered secure digital payment platform designed to address the rapidly growing problem of financial fraud in India's digital payments ecosystem. With over ₹20,000 crore lost annually to digital fraud, traditional systems that rely on static KYC checks and rule-based fraud detection are no longer sufficient. SafePay introduces a multi-layered defence architecture combining Behavioural Biometrics, Machine Learning-based fraud scoring, Blockchain-backed cross-institution signal sharing, and Federated Learning — all orchestrated through a GenAI agent pipeline.
+The platform provides real-time transaction risk scoring with a target latency of under 500ms, explainable AI decisions using SHAP values for regulatory compliance, and a privacy-preserving cross-bank fraud intelligence network using anonymised blockchain signals — zero raw PII ever leaves any institution. SafePay is built on a production-grade, fully containerised stack: Next.js 14 (frontend), FastAPI (backend), XGBoost + Isolation Forest (ML), Solidity/Hardhat (blockchain), Flower (federated learning), PostgreSQL + Redis (data layer), and Docker (infrastructure).
+This report documents the complete design, architecture, implementation, and validation of SafePay — from the Phase 0 monorepo scaffold through the complete authentication system, wallet and payments engine, and ML fraud detection service built and tested by the team.
+Keywords
+Digital Payment Security  ·  Fraud Detection  ·  Behavioural Biometrics  ·  XGBoost  ·  Federated Learning  ·  Blockchain  ·  SHAP Explainability  ·  FastAPI  ·  Next.js  ·  GenAI Agent  ·  LangChain  ·  Real-Time Risk Scoring
+Chapter 1 — Introduction
+1.1 Background and Motivation
+The proliferation of digital payment systems in India — accelerated by UPI, digital wallets, and mobile banking — has created an enormous attack surface for financial fraudsters. According to the Reserve Bank of India (RBI) Annual Report 2024, digital fraud cases have grown at over 45% CAGR in the past three years, with losses exceeding ₹20,000 crore annually.
+Traditional fraud detection systems suffer from three fundamental limitations:
+Reactive by design — they catch fraud after the fact (24–72 hours) rather than preventing it in real-time
+Data silos — each bank's model sees only its own transaction history; a fraudster who has never attacked Bank A is invisible to Bank A's model
+Static KYC — identity verification happens once at registration (face + document), not continuously throughout the user session
+1.2 Problem Statement
+Design and implement a production-grade AI-powered payment platform that: (a) detects fraud in real-time at transaction time, not hours later; (b) uses behavioural signals captured continuously during the session rather than only at registration; (c) shares anonymised fraud intelligence across institutions without compromising user privacy; and (d) provides human-readable explanations for every block decision to meet regulatory requirements.
+1.3 Objectives
+Build a full-stack secure payment platform with complete P2P, merchant, and UPI payment flows
+Implement a multi-signal fraud scoring engine using XGBoost, Isolation Forest, and behavioural biometrics
+Achieve sub-500ms end-to-end risk scoring latency
+Implement explainable fraud decisions using SHAP values for audit and compliance
+Build a privacy-preserving cross-bank fraud signal network using Ethereum smart contracts
+Implement Federated Learning to improve the fraud model without sharing raw transaction data across institutions
+Design and deploy a GenAI agent orchestration layer for intelligent fraud case management
+1.4 Scope
+This project covers:
+Complete backend API (FastAPI) covering auth, wallet, payments, fraud scoring, blockchain, and federated learning
+Frontend dashboard (Next.js 14) for both end-users and fraud analyst SOC console
+ML service (XGBoost + Isolation Forest) trained on the IEEE-CIS Fraud Detection dataset (590,540 transactions)
+Blockchain layer (Solidity on local Hardhat network) for cross-institution fraud signal sharing
+Federated learning simulation (Flower framework) across 3 simulated bank clients
+1.5 Team and Contributions
+Team Member
+Role
+Primary Contribution
+Jay Jadhav
+Full-Stack Lead
+Backend API (FastAPI), Auth system, Wallet & Payments engine, Frontend (Next.js), Docker infrastructure, AI agent orchestration (LangChain)
+Ganesh
+ML Engineer
+Dataset preprocessing (IEEE-CIS), XGBoost model training (97.55% accuracy), SHAP explainability, Federated Learning client (Flower)
+Mayur
+Blockchain Developer
+Solidity smart contracts (FraudRegistry, Reputation), Hardhat local deployment, Web3.py backend integration
+Chapter 2 — Literature Review
+2.1 Credit Card Fraud Detection — Survey
+Existing surveys (Journal of King Saud University, 2022) establish that supervised ML approaches outperform rule-based systems for fraud detection. XGBoost and LightGBM consistently achieve AUC-ROC > 0.92 on benchmark datasets. However, these models operate in batch mode, not real-time, and are trained on centralised datasets — both limitations that SafePay directly addresses.
+2.2 Behavioural Biometrics for Continuous Authentication
+Research (IEEE Transactions on Information Forensics and Security, 2022) demonstrates that keystroke dynamics (dwell time, flight time, digraph latency) and touch biometrics (swipe pressure, velocity, gesture shape) can uniquely identify users with >95% accuracy after 20 training sessions. SafePay implements this as a JavaScript SDK capturing telemetry throughout the session — not just at login.
+2.3 Federated Learning
+McMahan et al. (Google Brain, ICML 2021) introduced FedAvg — the algorithm SafePay uses to aggregate model updates across bank clients without sharing raw transaction data. Key finding: federated models achieve within 2% accuracy of centrally-trained models while preserving data locality.
+2.4 Blockchain for Financial Fraud Intelligence
+Springer Financial Innovation (2023) proposes blockchain as a tamper-proof, decentralised ledger for cross-institution fraud signals. Privacy is maintained by publishing only keccak256 hashes of entity identifiers — never raw PII. SafePay implements exactly this architecture via Solidity smart contracts.
+2.5 Explainable AI for Fraud Decisions
+Lundberg & Lee (NeurIPS 2017) introduced SHAP values as a unified approach to model explanation. RBI guidelines increasingly require explainability for automated financial decisions — SafePay integrates SHAP into every block/challenge decision so users and compliance officers receive a plain-language reason.
+2.6 Research Gap and SafePay's Contribution
+Limitation in Prior Work
+SafePay's Solution
+Fraud detection is reactive (post-transaction)
+Real-time scoring at transaction submission — < 500ms
+Models use only transaction features
+Adds behavioural biometrics (typing rhythm, touch pressure)
+Data silos — each bank sees only its own data
+Blockchain cross-institution signal sharing (no PII)
+Centralised training requires raw data sharing
+Federated Learning — gradients only, never raw data
+Black-box decisions, no explanation for users
+SHAP values + plain-language explanation for every decision
+Chapter 3 — System Design and Architecture
+3.1 High-Level Architecture
+SafePay is structured as a microservices monorepo with five independently deployable services, each in its own Docker container:
+Service
+Technology
+Port
+Responsibility
+frontend
+Next.js 14 + TypeScript
+:3000
+User app + Admin SOC dashboard
+backend
+FastAPI + Python 3.11
+:8000
+REST API — auth, wallet, payments, fraud, blockchain, copilot
+ml-service
+FastAPI + XGBoost
+:8001
+Fraud scoring engine — real-time risk score + SHAP explanations
+hardhat-node
+Hardhat + Solidity
+:8545
+Local Ethereum blockchain — fraud signal registry
+postgres
+PostgreSQL 15
+:5432
+Primary data store — 18 tables across 5 domains
+redis
+Redis 7
+:6379
+OTP store, refresh token cache, rate limiting
+3.2 Database Schema — 18 Tables Across 5 Domains
+Domain
+Tables
+Identity & Auth
+users, devices, behavioral_baselines, behavioral_events, audit_logs
+Wallet & Payments
+wallets, merchants, transactions, payment_requests, scheduled_payments
+Fraud Detection
+fraud_scores, fraud_explanations, fraud_cases, alerts
+Blockchain
+blockchain_fraud_signals, reputation_scores
+Federated Learning
+fl_clients, fl_training_rounds
+3.3 Security Architecture
+JWT Access Tokens (15-minute expiry) + Opaque Refresh Tokens (7-day, Redis-backed, single-use rotation)
+bcrypt password hashing (bcrypt==4.0.1, passlib==1.7.4)
+OTP hashed with HMAC-SHA256 before Redis storage — never stored in plaintext
+All money stored as NUMERIC(14,2) — never float, preventing rounding exploits
+Idempotency keys enforced on all payment endpoints — prevents double-charging on retry
+Row-level database locking (SELECT ... FOR UPDATE) on wallet balance changes — prevents race conditions
+RBAC middleware with 5 roles: user, merchant, fraud_analyst, compliance_officer, admin
+Rate limiting: 10 req/min on auth endpoints, 60 req/min general, Redis sliding window
+3.4 GenAI Agent Architecture
+SafePay's fraud decision pipeline is orchestrated by a LangChain agent that wraps all backend modules as callable tools:
+Tool 1: score_biometrics — calls ml-service /score with behavioural feature vector
+Tool 2: check_blockchain — queries Solidity contract for cross-bank fraud signal
+Tool 3: score_transaction — weighted composite risk calculation (35/30/20/15 weights)
+Guardrail: validates every LLM output — no PII in response, confidence score present, reason non-empty
+Human Handoff: confidence < 0.5 or HIGH_FRAUD category → escalate to Fraud Operations Team
+Chapter 4 — Technology Stack
+Layer
+Technology
+Version
+Purpose
+Frontend
+Next.js + TypeScript
+14.x
+User app and Admin SOC dashboard
+Tailwind CSS
+3.x
+Design system — dual theme (light user / dark SOC)
+ShadCN UI
+latest
+Component library
+Three.js
+r128
+3D fraud heatmap globe (Phase 8)
+Backend
+FastAPI
+0.115+
+REST API — async, Pydantic-validated
+SQLAlchemy
+2.0+
+Async ORM with row-level locking
+Alembic
+1.13+
+Database migrations
+python-jose
+3.3+
+JWT generation and verification
+LangChain
+latest
+GenAI agent orchestration
+ML
+XGBoost
+2.x
+Primary fraud classifier (97.55% accuracy)
+scikit-learn
+1.x
+Isolation Forest, preprocessing, SMOTE
+SHAP
+0.44+
+Explainable AI — feature attributions
+Flower (flwr)
+1.x
+Federated learning framework
+Blockchain
+Solidity
+0.8.24
+Smart contracts — FraudRegistry, Reputation
+Hardhat
+2.22+
+Local Ethereum node + testing
+Web3.py
+6.x
+Python ↔ blockchain bridge
+Data
+PostgreSQL
+15
+Primary database — 18 tables
+Redis
+7
+OTP cache, refresh tokens, rate limiting
+asyncpg
+0.29+
+Async PostgreSQL driver
+DevOps
+Docker + Compose
+latest
+6-container local development environment
+GitHub Actions
+—
+CI/CD pipeline (Phase 10)
+Chapter 5 — ML Service: Fraud Detection Engine
+5.1 Dataset
+IEEE-CIS Fraud Detection Dataset (Kaggle Competition, 2019):
+Total transactions: 590,540 rows
+Original features: 394 columns
+Class distribution: 96.5% genuine, 3.5% fraudulent (heavily imbalanced)
+Splits: 472,432 training / 118,108 testing
+5.2 Preprocessing Pipeline (Ganesh)
+Step
+Action
+Result
+1. Missing Value Analysis
+Remove columns with >80% missing values
+394 → 339 columns
+2. Data Cleaning
+Fill remaining NaN with 0
+No null values in training data
+3. Categorical Encoding
+LabelEncoder on 14 categorical columns
+Encoders saved as encoders.pkl
+4. Feature Preparation
+Drop target column isFraud
+Feature shape: (590,540 × 338)
+5. Train-Test Split
+80/20 stratified split
+472,432 train / 118,108 test
+6. Model Training
+XGBoost Classifier (default hyperparams)
+fraud_model.pkl saved
+7. Artifacts
+Save model + feature columns + encoders
+fraud_model.pkl, feature_columns.pkl, encoders.pkl
+5.3 Model Performance
+Metric
+Score
+Notes
+Accuracy
+97.55%
+On 118,108 test transactions
+Algorithm
+XGBoost Classifier
+Gradient boosted decision trees
+Dataset
+IEEE-CIS 2019
+Industry-standard benchmark
+Saved Artifacts
+3 pkl files
+fraud_model.pkl, feature_columns.pkl, encoders.pkl
+5.4 API Contract (ML_CONTRACT.md)
+The ML service exposes two endpoints, as defined in the team contract:
+GET /health → { status, version, model }
+POST /score → accepts transaction feature vector, returns { risk_score, decision, confidence, model_version, feature_contributions }
+Decision thresholds:
+risk_score < 0.3 → approve
+0.3 ≤ risk_score ≤ 0.7 → challenge (OTP/biometric re-verification)
+risk_score > 0.7 → block transaction
+5.5 Planned Enhancements
+Phase 5: SHAP values for feature_contributions — explains exactly which signals drove the decision
+Phase 7: Replace centralised XGBoost with Federated Learning model trained via Flower framework across 3 simulated bank clients, achieving within 2% accuracy of centralised baseline without sharing raw data
+Chapter 6 — Implementation
+6.1 Development Methodology
+SafePay was built using a phase-driven development methodology inspired by trunk-based development with feature-branch isolation. Each phase has a defined set of exit criteria that must be verified by real API calls against live containers before the phase is marked complete. This prevented accumulating technical debt from unverified assumptions.
+6.2 Phase-wise Implementation Progress
+Phase
+Description
+Status
+Key Deliverables
+0
+Project Setup
+✅ Complete
+Monorepo, Docker Compose, all 6 containers healthy
+1
+Auth & Database
+✅ Complete
+Register → OTP → Login → Refresh → Logout, all tested end-to-end
+2
+Wallet & Payments
+✅ Complete
+Balance, Add Money, Withdraw, P2P, Merchant Pay, QR Generate/Pay, UPI Send
+3
+Device & Biometrics
+✅ Complete
+Device fingerprinting, keystroke SDK, telemetry API, trust score
+4
+Fraud Detection (ML)
+🟦 In Progress
+XGBoost model trained by Ganesh (97.55%), API integration in progress
+5
+Explainable AI
+⬜ Planned
+SHAP values, human-readable explanations, alerts
+6
+Blockchain
+⬜ Planned
+FraudRegistry.sol, Reputation.sol, Web3.py integration
+7
+Federated Learning
+⬜ Planned
+Flower FL, 3 simulated bank clients, FedAvg
+8
+Admin SOC Dashboard
+⬜ Planned
+3D globe, real-time feed, heatmaps, case management
+9
+AI Copilot
+⬜ Planned
+LangGraph agent, explain-transaction, recommend-action
+10
+Hardening & Polish
+⬜ Planned
+Load testing, CI/CD, K8s manifests, staging deployment
+6.3 Key Technical Decisions and Their Rationale
+6.3.1 Async SQLAlchemy + asyncpg
+FastAPI's async architecture requires a fully async database driver. Using synchronous psycopg2 in Uvicorn's event loop would block the entire server thread. SQLAlchemy 2.0's async engine with asyncpg resolved this.
+6.3.2 Row-Level Locking for Wallet Operations
+Standard read-then-write patterns for balance updates create a race condition: two simultaneous withdrawal requests can both read the same balance, both see sufficient funds, and both debit — resulting in a negative balance. SELECT ... FOR UPDATE locks the wallet row for the duration of the transaction, preventing this entirely.
+6.3.3 Idempotency Keys on All Payment Endpoints
+In mobile networks, requests are retried on timeout. Without idempotency, a user tapping 'Send' on a slow connection might trigger two transfers. Every payment endpoint checks for an existing transaction with the same idempotency_key before executing, returning the original result on duplicates.
+6.3.4 SQLAlchemy Enum values_callable
+PostgreSQL enums are case-sensitive. Python enum members (ACTIVE, PENDING) don't automatically map to their lowercase values (active, pending) stored in Postgres. Adding values_callable=lambda e: [x.value for x in e] to every Enum() column resolved 3 separate crashes during Phase 1 and Phase 2 development.
+6.3.5 Separate Database URLs for App vs Alembic
+FastAPI uses asyncpg (async driver, connection string: postgresql+asyncpg://...). Alembic requires psycopg2 (sync driver). Sharing one DATABASE_URL caused both to fail in alternation. The permanent fix was two separate environment variables: DATABASE_URL (async, for the app) and ALEMBIC_DATABASE_URL (sync, for migrations only).
+Chapter 7 — Testing and Validation
+7.1 Testing Methodology
+Every Phase 1 and Phase 2 endpoint was tested against live running containers using curl against the actual PostgreSQL database. No mocks — real requests, real database state, real JWT tokens.
+7.2 Auth System — Verified Tests
+Test
+Expected
+Result
+POST /auth/register
+201 Created — user + wallet created
+✅ Pass
+POST /auth/otp/verify
+200 OK — status pending → active
+✅ Pass
+POST /auth/login
+200 OK — access + refresh tokens
+✅ Pass
+POST /auth/refresh
+200 OK — new token pair, old revoked
+✅ Pass
+POST /auth/refresh (reuse)
+401 Unauthorized — proves rotation
+✅ Pass
+POST /auth/logout
+200 OK — token revoked
+✅ Pass
+POST /auth/refresh (post-logout)
+401 Unauthorized — proves revocation
+✅ Pass
+Duplicate registration
+409 Conflict
+✅ Pass
+Wrong password
+401 — generic 'invalid credentials'
+✅ Pass
+7.3 Wallet & Payments — Verified Tests
+Test
+Expected
+Result
+GET /wallet/balance
+200 OK — balance: 0.00
+✅ Pass
+POST /wallet/add-money
+201 Created — balance: 1000.00
+✅ Pass
+POST /wallet/add-money (same key)
+201 — same txn_id, balance unchanged
+✅ Idempotency Pass
+POST /wallet/withdraw
+201 Created — balance: 700.00
+✅ Pass
+POST /wallet/withdraw (excess)
+400 Insufficient balance
+✅ Pass
+POST /payments/p2p/transfer
+201 — sender −₹100, receiver +₹100
+✅ Pass
+POST /payments/p2p/transfer (self)
+400 Cannot transfer to yourself
+✅ Pass
+POST /payments/merchant/pay
+201 — merchant wallet credited
+✅ Pass
+POST /payments/qr/generate
+201 — QR payload with merchant details
+✅ Pass
+POST /payments/qr/pay
+201 — payment via scanned QR
+✅ Pass
+POST /payments/upi/send
+201 — payment via UPI ID
+✅ Pass
+GET /wallet/transactions
+200 — full history, most recent first
+✅ Pass
+7.4 Key Bugs Discovered and Fixed
+#
+Bug
+Root Cause
+Fix
+1
+bcrypt password error
+Version mismatch between passlib and bcrypt
+Pinned bcrypt==4.0.1, passlib==1.7.4
+2
+Enum InvalidTextRepresentation
+SQLAlchemy sends .name not .value to Postgres
+Added values_callable to all Enum() columns
+3
+Alembic silent failure
+asyncpg driver incompatible with Alembic
+Separate ALEMBIC_DATABASE_URL with psycopg2
+4
+BOM in JSON test files
+PowerShell Out-File adds UTF-8 BOM
+Switched to WriteAllText() for all test files
+5
+Race condition on withdraw
+Two simultaneous requests both read same balance
+Row-level locking with SELECT ... FOR UPDATE
+6
+Token reuse after logout
+Missing Redis delete in logout flow
+Redis key deleted on logout, 401 on reuse verified
+Chapter 8 — Results and Discussion
+8.1 Completed Deliverables
+Full authentication system: register → OTP → login → refresh → logout, all verified end-to-end
+Complete payment engine: balance, add-money, withdraw, P2P transfer, merchant pay, QR generate/pay, UPI send — all tested with real money-movement across 2 user accounts
+Idempotency system: duplicate requests correctly return the original transaction ID, balance unchanged — verified with identical idempotency key replay tests
+Security: JWT rotation, token revocation, rate limiting, RBAC, row-level locking all confirmed working
+ML Service: XGBoost model trained by Ganesh achieving 97.55% accuracy on IEEE-CIS dataset; API framework ready for integration
+8.2 Performance Metrics
+Metric
+Target
+Current Status
+Auth endpoint latency
+< 500ms
+< 100ms observed in testing
+Payment endpoint latency
+< 500ms
+< 150ms observed in testing
+ML scoring latency
+< 500ms
+Target — integration in Phase 4
+Model accuracy (XGBoost)
+> 92% AUC
+97.55% overall accuracy achieved
+Federated vs centralised accuracy gap
+< 2%
+Planned — Phase 7
+Token security
+Single-use rotation
+Verified — reused token returns 401
+Race condition protection
+Zero double-spends
+Verified — row-level locking confirmed
+8.3 Discussion
+The phase-driven development methodology proved highly effective for a 3-person FYP team. By verifying each phase's exit criteria with real API calls before moving on, the team avoided accumulating unverified assumptions that would have manifested as hard-to-diagnose bugs in later phases.
+The most significant technical challenge was the SQLAlchemy enum casing issue (Python enum .name vs .value vs Postgres enum values) which manifested in 3 separate tables. The systematic fix — applying values_callable to every Enum() column — eliminated the entire class of bug rather than patching individual occurrences.
+Chapter 9 — Conclusion and Future Work
+9.1 Conclusion
+SafePay demonstrates that a production-grade AI-powered payment platform with multi-layer fraud detection is achievable within a final year project scope, provided the architecture decisions are made correctly upfront. The microservices monorepo structure, async-first backend, and phase-driven validation approach enabled the team to build and verify a substantial system within the academic timeline.
+The combination of behavioural biometrics (Phase 3), XGBoost fraud scoring (Phase 4), SHAP explainability (Phase 5), blockchain signal sharing (Phase 6), and federated learning (Phase 7) represents a novel, multi-layered approach that addresses the genuine research gaps identified in Chapter 2 — none of the existing systems combine all five layers in a single real-time pipeline.
+9.2 Future Work
+Real SMS/email OTP delivery integration (Twilio/AWS SNS) to replace dev-mode console printing
+Production Kubernetes deployment with horizontal scaling for the fraud scoring pipeline
+Adversarial biometric testing — attempting to spoof the typing cadence model
+Expand federated learning from 3 simulated bank clients to actual distributed deployment
+GDPR and DPDP Act 2023 compliance audit — encryption at rest for PII columns
+Mobile app (React Native) extending the Next.js frontend
+Integration with real UPI PSP (Payment Service Provider) rails via NPCI sandbox
+9.3 Research Paper Target
+The novel contributions of this project are being written up for submission to:
+Primary target: IEEE Access (Open Access) — 'SafePay: A Privacy-Preserving Multi-Layer AI Framework for Real-Time Financial Fraud Detection'
+Secondary target: Springer Financial Innovation Journal
+Preprint: arXiv cs.CR (Cryptography and Security) section
+References
+[1] McMahan, H. B., et al. 'Communication-Efficient Learning of Deep Networks from Decentralized Data.' ICML 2021.
+[2] Lundberg, S. M., & Lee, S. I. 'A Unified Approach to Interpreting Model Predictions.' NeurIPS 2017.
+[3] Chawla, N. V., et al. 'SMOTE: Synthetic Minority Over-sampling Technique.' Journal of Artificial Intelligence Research, 2002.
+[4] 'Credit Card Fraud Detection using Machine Learning: A Survey.' Journal of King Saud University, Computer and Information Sciences, 2022.
+[5] 'Behavioural Biometrics for Continuous Authentication: A Survey.' IEEE Transactions on Information Forensics and Security, 2022.
+[6] 'Blockchain for Financial Fraud Detection: Architecture and Challenges.' Financial Innovation, Springer, 2023.
+[7] 'Differential Privacy and Federated Learning: A Survey.' ACM Computing Surveys, 2023.
+[8] IEEE-CIS Fraud Detection Dataset. Kaggle, 2019. https://www.kaggle.com/c/ieee-fraud-detection
+[9] Reserve Bank of India. Annual Report 2024 — Digital Payments and Fraud Statistics.
+[10] FastAPI Documentation. https://fastapi.tiangolo.com
+[11] Flower Federated Learning Framework. https://flower.dev/docs
+[12] Hardhat Ethereum Development Environment. https://hardhat.org
+[13] SHAP Library Documentation. https://shap.readthedocs.io

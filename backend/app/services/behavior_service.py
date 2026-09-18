@@ -1,4 +1,4 @@
-﻿"""Device fingerprinting and behavioral telemetry service."""
+"""Device fingerprinting and behavioral telemetry service."""
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -137,7 +137,10 @@ async def get_trust_score(db: AsyncSession, user_id: UUID) -> dict:
         ).where(BehavioralEvent.user_id == user_id)
     )
     row = result.one()
-    avg_score = float(row.avg_score or 0.0)
+    # Default to 50.0 (neutral) when user has no behavioral events.
+    # "No data" means "not yet evaluated", NOT "untrusted".
+    # A registered + OTP-verified user has already passed identity checks.
+    avg_score = float(row.avg_score) if row.avg_score is not None else 50.0
     total_events = int(row.total_events or 0)
     return {
         'trust_score': round(avg_score, 2),

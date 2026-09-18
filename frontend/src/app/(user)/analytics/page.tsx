@@ -137,6 +137,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [days]);
 
   async function load() {

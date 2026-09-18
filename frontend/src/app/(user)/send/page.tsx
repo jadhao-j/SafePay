@@ -114,10 +114,10 @@ function SendForm(): JSX.Element {
   function handleNumKey(val: string): void {
     if (val === "⌫") {
       setPin(p => p.slice(0, -1));
-    } else if (pin.length < 4) {
+    } else if (pin.length < 6) {
       const next = pin + val;
       setPin(next);
-      if (next.length === 4) {
+      if (next.length === 6) {
         // auto-submit after short delay so last dot animates
         setTimeout(() => void submitPayment(next), 200);
       }
@@ -192,7 +192,7 @@ function SendForm(): JSX.Element {
   ════════════════════════════════════════════════════════════════════ */
   if (step === "challenge") {
     async function submitOtp(): Promise<void> {
-      if (!challengeTxnId || otpCode.length < 4) return;
+      if (!challengeTxnId || otpCode.length < 6) return;
       setOtpLoading(true); setOtpError(null);
       try {
         const res = await apiClient.post<P2PResponse>(`/payments/${challengeTxnId}/verify-challenge`, {
@@ -220,7 +220,7 @@ function SendForm(): JSX.Element {
           Verification Required
         </h1>
         <p style={{ fontSize:13, color:"#6B7180", margin:"0 0 6px", textAlign:"center", maxWidth:320 }}>
-          SafePay's fraud protection flagged this payment for review.
+          SafePay&apos;s fraud protection flagged this payment for review.
         </p>
         <p style={{ fontSize:12, color:"#FFB84D", margin:"0 0 28px", textAlign:"center",
           fontFamily:"var(--font-ibm-plex-mono,monospace)" }}>
@@ -235,7 +235,7 @@ function SendForm(): JSX.Element {
           maxLength={6}
           value={otpCode}
           onChange={e => setOtpCode(e.target.value.replace(/\D/g, ""))}
-          placeholder="Enter OTP code"
+          placeholder="Enter 6-digit OTP"
           style={{ width:"100%", maxWidth:300, padding:"14px 16px", textAlign:"center",
             background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,184,77,0.4)",
             borderRadius:12, color:"#F5F6F8", fontSize:20, fontWeight:700, letterSpacing:"0.25em",
@@ -249,13 +249,13 @@ function SendForm(): JSX.Element {
         <button
           id="btn-verify-challenge"
           onClick={() => void submitOtp()}
-          disabled={otpCode.length < 4 || otpLoading}
+          disabled={otpCode.length < 6 || otpLoading}
           style={{ width:"100%", maxWidth:300, padding:15, borderRadius:14, border:"none",
-            background: otpCode.length >= 4 && !otpLoading ? "linear-gradient(135deg,#FFB84D,#FF8C00)" : "rgba(255,255,255,0.08)",
-            color: otpCode.length >= 4 && !otpLoading ? "#fff" : "rgba(255,255,255,0.3)",
-            fontSize:15, fontWeight:700, cursor: otpCode.length >= 4 ? "pointer" : "not-allowed",
+            background: otpCode.length >= 6 && !otpLoading ? "linear-gradient(135deg,#FFB84D,#FF8C00)" : "rgba(255,255,255,0.08)",
+            color: otpCode.length >= 6 && !otpLoading ? "#fff" : "rgba(255,255,255,0.3)",
+            fontSize:15, fontWeight:700, cursor: otpCode.length >= 6 ? "pointer" : "not-allowed",
             fontFamily:"var(--font-space-grotesk,'Space Grotesk',sans-serif)",
-            boxShadow: otpCode.length >= 4 ? "0 12px 28px rgba(255,184,77,.3)" : "none",
+            boxShadow: otpCode.length >= 6 ? "0 12px 28px rgba(255,184,77,.3)" : "none",
             marginBottom:12 }}>
           {otpLoading ? "Verifying…" : "Verify & Complete Payment"}
         </button>
@@ -426,7 +426,7 @@ function SendForm(): JSX.Element {
 
         {/* PIN dots */}
         <div style={{ display: "flex", gap: 16, margin: "24px 0 40px" }}>
-          {[0,1,2,3].map(i => <PinDot key={i} filled={i < pin.length} />)}
+          {[0,1,2,3,4,5].map(i => <PinDot key={i} filled={i < pin.length} />)}
         </div>
 
         {/* Numpad */}

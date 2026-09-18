@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     reputation_address: str = Field(default="")
     blockchain_bank_private_key: str = Field(default="")
     blockchain_hash_salt: str = Field(default="safepay-salt-v1")
+    ml_service_url: str = Field(default="http://ml-service:8001")
     gemini_api_key: str = Field(default="")
 
 

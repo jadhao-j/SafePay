@@ -7,5 +7,7 @@ xgboost
 joblib
 shap
 matplotlib
+pyyaml>=6.0.1
 flwr>=1.0.0
 httpx
+

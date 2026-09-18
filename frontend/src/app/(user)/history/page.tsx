@@ -18,7 +18,7 @@ const STATUS: Record<string,{color:string;label:string}> = {
   failed:{color:"#FF5C5C",label:"FAILED"}, pending:{color:"#6B7180",label:"PENDING"},
   reversed:{color:"#7C5CFF",label:"REVERSED"},
 };
-const FILTERS = ["All","Approved","Challenged","Blocked"];
+const FILTERS = ["All","Approved","Challenged","Blocked","Topup","Withdrawal"];
 
 export default function HistoryPage(): JSX.Element {
   const router = useRouter();
@@ -30,8 +30,13 @@ export default function HistoryPage(): JSX.Element {
   useEffect(() => { fetchTransactions().then(setTxns).catch(()=>[]).finally(()=>setLoading(false)); }, []);
 
   const filtered = txns.filter(t => {
-    const matchFilter = filter==="All" || t.status.toLowerCase()===filter.toLowerCase() ||
-      (filter==="Approved" && (t.status==="approved"||t.status==="completed"));
+    let matchFilter = filter==="All";
+    if (!matchFilter) {
+      if (filter==="Approved") matchFilter = t.status==="approved"||t.status==="completed";
+      else if (filter==="Topup") matchFilter = t.payment_type==="topup";
+      else if (filter==="Withdrawal") matchFilter = t.payment_type==="withdrawal";
+      else matchFilter = t.status.toLowerCase()===filter.toLowerCase();
+    }
     const matchSearch = !search || t.payment_type.includes(search.toLowerCase()) ||
       t.id.includes(search.toLowerCase());
     return matchFilter && matchSearch;
@@ -81,7 +86,9 @@ export default function HistoryPage(): JSX.Element {
         )}
 
         {!loading && filtered.map(txn => {
-          const debit = DEBIT.has(txn.payment_type);
+          // Use _direction from API if available; fall back to payment_type heuristic
+          const direction = (txn as unknown as Record<string,unknown>)._direction as string | undefined;
+          const debit = direction ? direction === "sent" : DEBIT.has(txn.payment_type);
           const s = STATUS[txn.status]??{color:"#6B7180",label:txn.status.toUpperCase()};
           return (
             <Link key={txn.id} href={`/history/${txn.id}`} id={`txn-hist-${txn.id}`}

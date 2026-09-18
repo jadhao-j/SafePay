@@ -58,8 +58,9 @@ export default function MerchantRegisterPage() {
       });
       setSuccess(true);
       setTimeout(() => router.push("/merchant/dashboard"), 1400);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Registration failed. Please try again.");
+    } catch (e: unknown) {
+      const axiosErr = e as { response?: { data?: { detail?: string } } };
+      setError(axiosErr?.response?.data?.detail || "Registration failed. Please try again.");
       setSubmitting(false);
     }
   }

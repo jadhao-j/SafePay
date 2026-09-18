@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field, field_validator
 
 
 def _validate_pin(v: str) -> str:
-    if not v.isdigit() or len(v) != 4:
-        raise ValueError("transaction_pin must be exactly 4 numeric digits.")
+    if not v.isdigit() or len(v) != 6:
+        raise ValueError("transaction_pin must be exactly 6 numeric digits.")
     return v
 
 
@@ -24,9 +24,7 @@ class WalletTopUpRequest(BaseModel):
     amount: Decimal = Field(gt=Decimal("0"))
     currency: str = "INR"
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
-
-    _validate_pin = field_validator("transaction_pin")(_validate_pin)
+    transaction_pin: str = Field(default="", description="Optional — add-money bypasses PIN")
 
 
 class WalletWithdrawRequest(BaseModel):
@@ -35,7 +33,7 @@ class WalletWithdrawRequest(BaseModel):
     amount: Decimal = Field(gt=Decimal("0"))
     currency: str = "INR"
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
+    transaction_pin: str = Field(min_length=6, max_length=6)
 
     _validate_pin = field_validator("transaction_pin")(_validate_pin)
 

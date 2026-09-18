@@ -72,10 +72,7 @@ async def _find_existing_transaction(db: AsyncSession, idempotency_key: str) -> 
 
 
 async def add_money(db: AsyncSession, user_id: UUID, amount: Decimal, idempotency_key: str, transaction_pin: str = "") -> Transaction:
-    """Top up the caller's wallet."""
-
-    # Verify PIN before processing
-    await _verify_transaction_pin(db, user_id, transaction_pin)
+    """Top up the caller's wallet. Bypasses fraud scoring — no PIN required."""
 
     existing = await _find_existing_transaction(db, idempotency_key)
     if existing is not None:

@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field, field_validator
 
 
 def _validate_pin(v: str) -> str:
-    if not v.isdigit() or len(v) != 4:
-        raise ValueError("transaction_pin must be exactly 4 numeric digits.")
+    if not v.isdigit() or len(v) != 6:
+        raise ValueError("transaction_pin must be exactly 6 numeric digits.")
     return v
 
 
@@ -27,7 +27,7 @@ class UpiSendRequest(BaseModel):
     currency: str = "INR"
     note: str | None = None
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
+    transaction_pin: str = Field(min_length=6, max_length=6)
 
     _validate_pin = field_validator("transaction_pin")(_validate_pin)
 
@@ -47,7 +47,7 @@ class QRPayRequest(BaseModel):
     amount: Decimal = Field(gt=Decimal("0"))
     currency: str = "INR"
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
+    transaction_pin: str = Field(min_length=6, max_length=6)
 
     _validate_pin = field_validator("transaction_pin")(_validate_pin)
 
@@ -59,7 +59,7 @@ class MerchantPayRequest(BaseModel):
     amount: Decimal = Field(gt=Decimal("0"))
     currency: str = "INR"
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
+    transaction_pin: str = Field(min_length=6, max_length=6)
 
     _validate_pin = field_validator("transaction_pin")(_validate_pin)
 
@@ -72,7 +72,7 @@ class P2PTransferRequest(BaseModel):
     currency: str = "INR"
     note: str | None = None
     idempotency_key: str = Field(min_length=1)
-    transaction_pin: str = Field(min_length=4, max_length=4)
+    transaction_pin: str = Field(min_length=6, max_length=6)
 
     _validate_pin = field_validator("transaction_pin")(_validate_pin)
 

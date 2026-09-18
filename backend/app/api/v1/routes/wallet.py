@@ -69,22 +69,31 @@ async def list_transactions(
     limit: int = 50,
     db: AsyncSession = Depends(get_session),
     user_id=Depends(get_current_user_id),
-) -> list[dict[str, str | None]]:
+) -> dict[str, str | list]:
     """List the caller's transaction history, most recent first."""
 
     txns = await wallet_service.list_transactions(db, user_id, limit)
+    wallet = await wallet_service.get_wallet_by_user_id(db, user_id)
+    my_wallet_id = str(wallet.id)
 
-    return [
-        {
-            "id": str(t.id),
-            "amount": str(t.amount),
-            "currency": t.currency,
-            "payment_type": t.payment_type.value,
-            "status": t.status.value,
-            "created_at": t.created_at.isoformat(),
-        }
-        for t in txns
-    ]
+    return {
+        "wallet_id": my_wallet_id,
+        "transactions": [
+            {
+                "id": str(t.id),
+                "amount": str(t.amount),
+                "currency": t.currency,
+                "payment_type": t.payment_type.value,
+                "status": t.status.value,
+                "sender_wallet_id": str(t.sender_wallet_id) if t.sender_wallet_id else None,
+                "receiver_wallet_id": str(t.receiver_wallet_id) if t.receiver_wallet_id else None,
+                "recipient_identifier": getattr(t, "recipient_identifier", None),
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in txns
+        ],
+    }
+
 
 
 @router.post("/payment-requests", status_code=status.HTTP_501_NOT_IMPLEMENTED)

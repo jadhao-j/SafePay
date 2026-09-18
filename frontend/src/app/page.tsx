@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import AuroraBackground from "@/components/AuroraBackground";
 
 const TRUST_BADGES = [
   { icon: "🛡", label: "AI Fraud Detection", sub: "Real-time scoring on every transaction" },
@@ -40,11 +41,8 @@ export default function LandingPage(): JSX.Element {
         overflow: "hidden",
       }}
     >
-      {/* Background grid */}
-      <div style={{ position: "fixed", inset: 0, backgroundImage: "linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px)", backgroundSize: "40px 40px", pointerEvents: "none" }} />
-      {/* Glow blobs */}
-      <div style={{ position: "fixed", top: "10%", left: "50%", transform: "translateX(-50%)", width: "700px", height: "400px", background: "radial-gradient(ellipse, rgba(59,130,246,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
-      <div style={{ position: "fixed", bottom: "10%", right: "10%", width: "400px", height: "300px", background: "radial-gradient(ellipse, rgba(99,102,241,0.06) 0%, transparent 70%)", pointerEvents: "none" }} />
+      {/* Aurora WebGL background */}
+      <AuroraBackground colorA="#3B82F6" colorB="#00D4FF" speed={0.8} />
 
       {/* ── Nav ── */}
       <nav style={{ position: "relative", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 40px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>

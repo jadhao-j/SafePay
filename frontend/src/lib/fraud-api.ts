@@ -82,10 +82,19 @@ function authHeader(): Record<string, string> {
 
 /** Fetch the current user's transaction history. */
 export async function fetchTransactions(): Promise<WalletTransaction[]> {
-  const res = await apiClient.get<WalletTransaction[]>("/wallet/transactions", {
+  const res = await apiClient.get<{ wallet_id: string; transactions: WalletTransaction[] } | WalletTransaction[]>("/wallet/transactions", {
     headers: authHeader(),
   });
-  return res.data;
+  // Support both old (array) and new (object) response shapes
+  if (Array.isArray(res.data)) {
+    return res.data;
+  }
+  const myWalletId = res.data.wallet_id;
+  // Attach direction info to each transaction
+  return res.data.transactions.map((t) => ({
+    ...t,
+    _direction: t.sender_wallet_id === myWalletId ? "sent" : "received",
+  }));
 }
 
 /** Fetch SHAP explanation for a single transaction. */

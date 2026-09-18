@@ -9,8 +9,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+import { getApiBaseUrl } from "@/lib/api";
 
 function pwStrength(p:string):{ score:number; label:string; color:string } {
   let s=0;
@@ -48,7 +47,7 @@ export default function RegisterPage(): JSX.Element {
     if (form.password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true);
     try {
-      await axios.post(`${API_BASE}/auth/register`,{
+      await axios.post(`${getApiBaseUrl()}/auth/register`,{
         name:form.name, email:form.email||null, phone:form.phone||null, password:form.password,
       });
       router.push(`/otp-verify?contact=${encodeURIComponent(form.email||form.phone)}`);

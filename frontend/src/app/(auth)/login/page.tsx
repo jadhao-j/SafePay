@@ -9,9 +9,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
-import { setAuthToken } from "@/lib/api";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+import { setAuthTokens, getApiBaseUrl } from "@/lib/api";
+import AuroraBackground from "@/components/AuroraBackground";
 
 function LoginForm(): JSX.Element {
   const router = useRouter();
@@ -28,10 +27,11 @@ function LoginForm(): JSX.Element {
   async function handleLogin(e:React.FormEvent): Promise<void> {
     e.preventDefault(); setError(null); setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE}/auth/login`,{ identifier, password });
+      const res = await axios.post(`${getApiBaseUrl()}/auth/login`,{ identifier, password });
       const token:string = res.data?.access_token;
+      const refreshToken:string = res.data?.refresh_token;
       if (!token) throw new Error("No token");
-      setAuthToken(token);
+      setAuthTokens(token, refreshToken);
 
       /* Role-based redirect */
       let role = "user";
@@ -61,8 +61,8 @@ function LoginForm(): JSX.Element {
       display:"flex", flexDirection:"column", alignItems:"center", padding:"80px 28px 40px",
       fontFamily:"var(--font-dm-sans,'DM Sans',sans-serif)",
     }}>
-      {/* Dot grid */}
-      <div aria-hidden="true" style={{ position:"fixed", inset:0, backgroundImage:"radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px)", backgroundSize:"20px 20px", pointerEvents:"none" }}/>
+      {/* Aurora WebGL background */}
+      <AuroraBackground colorA="#7C5CFF" colorB="#39D2FF" speed={0.9} />
 
       {/* Spinning logo mark — from reference */}
       <div style={{ position:"relative", zIndex:1, marginBottom:16,

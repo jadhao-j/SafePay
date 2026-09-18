@@ -24,7 +24,7 @@ class UserUpdate(BaseModel):
 class PinUpdate(BaseModel):
     """Payload for setting or changing the transaction PIN."""
 
-    pin: str = Field(min_length=4, max_length=4, description="Exactly 4 numeric digits.")
+    pin: str = Field(min_length=6, max_length=6, description="Exactly 6 numeric digits.")
 
     @field_validator("pin")
     @classmethod

@@ -101,6 +101,7 @@ export default function MerchantDashboard() {
   const [copied, setCopied] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void load(days); }, [days]);
 
   async function load(d: number) {
@@ -115,8 +116,9 @@ export default function MerchantDashboard() {
       setPayments(payRes.data.payments);
       setAnalytics(analyticsRes.data);
       setTimeout(() => renderQR(profRes.data.upi_id), 100);
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr?.response?.status === 404) {
         router.replace("/merchant/register");
       }
     } finally {

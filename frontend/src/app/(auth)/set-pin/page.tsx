@@ -2,7 +2,7 @@
 
 /**
  * Set PIN Page — Screen 6 (v2 premium dark)
- * Custom numpad, 4-dot indicator, enter + confirm 2-step, success screen.
+ * Custom numpad, 6-dot indicator, enter + confirm 2-step, success screen.
  * Calls PATCH /users/me/pin to persist the PIN securely on the backend.
  */
 
@@ -12,7 +12,7 @@ import { apiClient } from "@/lib/api";
 
 type Step = "enter" | "confirm" | "saving" | "done";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 function PinPad({ value, onChange, onSubmit, label, submitLabel, disabled }: {
   value: string; onChange: (v: string) => void; onSubmit: () => void;

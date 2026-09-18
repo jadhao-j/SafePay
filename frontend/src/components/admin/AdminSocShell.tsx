@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface FeedEvent {
   transaction_id: string;
@@ -28,11 +29,8 @@ export function AdminSocShell(): JSX.Element {
     const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
     if (!token) return;
 
-    const wsBase = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1").replace(
-      /^http/,
-      "ws"
-    );
-   const ws = new WebSocket(`${wsBase}/ws/admin/feed?token=${token}`);
+    const wsBase = getApiBaseUrl().replace(/^http/, "ws");
+    const ws = new WebSocket(`${wsBase}/ws/admin/feed?token=${token}`);
     wsRef.current = ws;
     let cancelled = false;
 

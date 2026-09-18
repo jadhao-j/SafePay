@@ -57,8 +57,9 @@ export default function ContactsPage() {
       setForm({ name: "", phone: "", upi_id: "" });
       setShowAdd(false);
       await fetchContacts(search);
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || "Could not save contact.");
+    } catch (e: unknown) {
+      const axiosErr = e as { response?: { data?: { detail?: string } } };
+      setError(axiosErr?.response?.data?.detail || "Could not save contact.");
     } finally { setSaving(false); }
   }
 
